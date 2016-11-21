@@ -1,10 +1,9 @@
 ################################################################################
 # Makefile                                                                     #
 #                                                                              #
-# Description: This file contains the make rules for Recitation 1.             #
+# Description: This file contains the make rules.                              #
 #                                                                              #
-# Authors: Athula Balachandran <abalacha@cs.cmu.edu>,                          #
-#          Wolf Richter <wolf@cs.cmu.edu>                                      #
+# Author: Shiyu Zhang <1181856726@qq.com>                                     #
 #                                                                              #
 ################################################################################
 

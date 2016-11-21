@@ -1,10 +1,10 @@
 ################################################################################
 # README                                                                       #
 #                                                                              #
-# Description: This file serves as a README and documentation for CP1 starter. #
+# Description: This file serves as a README and documentation for echo server  #
+#              and client.                                                     #
 #                                                                              #
-# Authors: Athula Balachandran <abalacha@cs.cmu.edu>,                          #
-#          Wolf Richter <wolf@cs.cmu.edu>                                      #
+# Author: Shiyu Zhang <1181856726@qq.com>                                     #
 #                                                                              #
 ################################################################################
 

@@ -42,6 +42,7 @@ for i in xrange(numTrials):
         randomLen.append(random_len)
         randomData.append(random_string)
         socketSubset[j].send(random_string)
+    
 
     for j in xrange(numWritesReads):
         data = socketSubset[j].recv(randomLen[j])

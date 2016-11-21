@@ -5,8 +5,7 @@
 *              client connects to an arbitrary <host,port> and sends input    *
 *              from stdin.                                                    *
 *                                                                             *
-* Authors: Athula Balachandran <abalacha@cs.cmu.edu>,                         *
-*          Wolf Richter <wolf@cs.cmu.edu>                                     *
+* Author: Shiyu Zhang <1181856726@qq.com>                                    *
 *                                                                             *
 *******************************************************************************/
 
