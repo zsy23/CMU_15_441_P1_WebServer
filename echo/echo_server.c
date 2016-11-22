@@ -25,14 +25,18 @@
 #include <fcntl.h>
 #include <arpa/inet.h>
 
+#include "log.h"
+
 #define ECHO_PORT 9999
 #define BUF_SIZE 4096
+
+FILE *log_fd;
 
 int close_socket(int sock)
 {
     if (close(sock))
     {
-        fprintf(stderr, "Failed closing socket: %s\n", strerror(errno));
+        LOG_ERROR(log_fd, "Failed closing socket: %s\n", strerror(errno));
         return 1;
     }
     return 0;
@@ -40,6 +44,8 @@ int close_socket(int sock)
 
 int main(int argc, char* argv[])
 {
+    log_fd = fopen("LOG", "w");
+
     int sock, client_sock;
     int maxi, maxfd;
     int i, nready;
@@ -53,7 +59,7 @@ int main(int argc, char* argv[])
     /* all networked programs must create a socket */
     if ((sock = socket(PF_INET, SOCK_STREAM, 0)) == -1)
     {
-        fprintf(stderr, "Failed creating socket: %s\n", strerror(errno));
+        LOG_ERROR(log_fd, "Failed creating socket: %s\n", strerror(errno));
         return EXIT_FAILURE;
     }
 
@@ -65,14 +71,14 @@ int main(int argc, char* argv[])
     if (bind(sock, (struct sockaddr *) &addr, sizeof(addr)))
     {
         close_socket(sock);
-        fprintf(stderr, "Failed binding socket: %s\n", strerror(errno));
+        LOG_ERROR(log_fd, "Failed binding socket: %s\n", strerror(errno));
         return EXIT_FAILURE;
     }
 
     if (listen(sock, FD_SETSIZE))
     {
         close_socket(sock);
-        fprintf(stderr, "Error listening on socket: %s\n", strerror(errno));
+        LOG_ERROR(log_fd, "Error listening on socket: %s\n", strerror(errno));
         return EXIT_FAILURE;
     }
 
@@ -93,10 +99,10 @@ int main(int argc, char* argv[])
         {
             cli_size = sizeof(cli_addr);
             if ((client_sock = accept(sock, (struct sockaddr *) &cli_addr, &cli_size)) == -1)
-                fprintf(stderr, "Error accepting connection: %s\n", strerror(errno));
+                LOG_ERROR(log_fd, "Error accepting connection: %s\n", strerror(errno));
             else
             {        
-                fprintf(stdout, "Connected by %s:%u\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
+                LOG_LOG(log_fd, "Connected by %s:%u\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
 
                 /* workaround solution to situation where select() return while not actually be ready to read*/
                 fcntl(client_sock, F_SETFL, O_NONBLOCK); 
@@ -113,7 +119,7 @@ int main(int argc, char* argv[])
                 if (i == FD_SETSIZE)
                 {
                     close_socket(client_sock);
-                    fprintf(stderr, "Error too many clients\n");
+                    LOG_ERROR(log_fd, "Error too many clients\n");
                 }
                 else
                 {
@@ -133,16 +139,16 @@ int main(int argc, char* argv[])
                 if ((readret = recv(client[i], buf, BUF_SIZE, 0)) > 0)
                 {
                     if (send(client[i], buf, readret, 0) != readret)
-                        fprintf(stderr, "Error sending to client: %s\n", strerror(errno));
+                        LOG_ERROR(log_fd, "Error sending to client: %s\n", strerror(errno));
                     memset(buf, 0, BUF_SIZE);
                 }                                       
 
                 if (readret == -1)
-                    fprintf(stderr, "Error reading from client socket: %s\n", strerror(errno));
+                    LOG_ERROR(log_fd, "Error reading from client socket: %s\n", strerror(errno));
 
                 if (readret == 0)
                 {
-                    fprintf(stdout, "Close client's fd %d\n", client[i]);
+                    LOG_LOG(log_fd, "Close client's fd %d\n", client[i]);
                     close_socket(client[i]);
                     FD_CLR(client[i], &allset);
                     client[i] = -1;
