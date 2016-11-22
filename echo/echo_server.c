@@ -22,6 +22,7 @@
 #include <sys/select.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <arpa/inet.h>
 
 #define ECHO_PORT 9999
@@ -97,6 +98,9 @@ int main(int argc, char* argv[])
             {        
                 fprintf(stdout, "Connected by %s:%u\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
 
+                /* workaround solution to situation where select() return while not actually be ready to read*/
+                fcntl(client_sock, F_SETFL, O_NONBLOCK); 
+              
                 for (i = 0; i < FD_SETSIZE; ++i)
                 {
                     if (client[i] == -1)

@@ -5,7 +5,7 @@
 *              client connects to an arbitrary <host,port> and sends input    *
 *              from stdin.                                                    *
 *                                                                             *
-* Author: Shiyu Zhang <1181856726@qq.com>                                    *
+* Author: Shiyu Zhang <1181856726@qq.com>                                     *
 *                                                                             *
 *******************************************************************************/
 
