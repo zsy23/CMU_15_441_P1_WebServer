@@ -10,6 +10,8 @@
 *                                                                             *
 *******************************************************************************/
 
+#include "log.h"
+
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
@@ -25,26 +27,22 @@
 #include <fcntl.h>
 #include <arpa/inet.h>
 
-#include "log.h"
-
 #define ECHO_PORT 9999
 #define BUF_SIZE 4096
 
-FILE *log_fd;
-
-int close_socket(int sock)
+int close_socket( int sock )
 {
-    if (close(sock))
+    if ( close( sock ) )
     {
-        LOG_ERROR(log_fd, "Failed closing socket: %s\n", strerror(errno));
+        LOG_ERROR( "Failed closing socket: %s\n", strerror( errno ) );
         return 1;
     }
     return 0;
 }
 
-int main(int argc, char* argv[])
+int main( int argc, char* argv[] )
 {
-    log_fd = fopen("LOG", "w");
+    log_init( LOG_LEVEL_DEBUG, "LOG" ); 
 
     int sock, client_sock;
     int maxi, maxfd;
@@ -57,108 +55,110 @@ int main(int argc, char* argv[])
     char buf[BUF_SIZE];
     
     /* all networked programs must create a socket */
-    if ((sock = socket(PF_INET, SOCK_STREAM, 0)) == -1)
+    if ( ( sock = socket( PF_INET, SOCK_STREAM, 0 ) ) == -1 )
     {
-        LOG_ERROR(log_fd, "Failed creating socket: %s\n", strerror(errno));
+        LOG_ERROR( "Failed creating socket: %s\n", strerror( errno ) );
         return EXIT_FAILURE;
     }
 
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(ECHO_PORT);
+    addr.sin_port = htons( ECHO_PORT );
     addr.sin_addr.s_addr = INADDR_ANY;
 
     /* servers bind sockets to ports---notify the OS they accept connections */
-    if (bind(sock, (struct sockaddr *) &addr, sizeof(addr)))
+    if ( bind( sock, ( struct sockaddr * ) &addr, sizeof( addr ) ) )
     {
-        close_socket(sock);
-        LOG_ERROR(log_fd, "Failed binding socket: %s\n", strerror(errno));
+        close_socket( sock );
+        LOG_ERROR( "Failed binding socket: %s\n", strerror( errno ) );
         return EXIT_FAILURE;
     }
 
-    if (listen(sock, FD_SETSIZE))
+    if ( listen( sock, FD_SETSIZE ) )
     {
-        close_socket(sock);
-        LOG_ERROR(log_fd, "Error listening on socket: %s\n", strerror(errno));
+        close_socket( sock );
+        LOG_ERROR( "Error listening on socket: %s\n", strerror( errno ) );
         return EXIT_FAILURE;
     }
 
     /* configure select */
-    for (i = 0; i < FD_SETSIZE; ++i) client[i] = -1;
+    for ( i = 0; i < FD_SETSIZE; ++i ) client[i] = -1;
     maxi = -1;
     maxfd = sock;
-    FD_ZERO(&allset);
-    FD_SET(sock, &allset);    
+    FD_ZERO( &allset );
+    FD_SET( sock, &allset );    
 
     /* finally, loop waiting for input and then write it back */
-    while (1)
+    while ( 1 )
     {
         rset = allset;
-        nready = select(maxfd + 1, &rset, NULL, NULL, NULL);
+        nready = select( maxfd + 1, &rset, NULL, NULL, NULL );
 
-        if (FD_ISSET(sock, &rset))
+        if ( FD_ISSET( sock, &rset ) )
         {
-            cli_size = sizeof(cli_addr);
-            if ((client_sock = accept(sock, (struct sockaddr *) &cli_addr, &cli_size)) == -1)
-                LOG_ERROR(log_fd, "Error accepting connection: %s\n", strerror(errno));
+            cli_size = sizeof( cli_addr );
+            if ( ( client_sock = accept( sock, ( struct sockaddr * ) &cli_addr, &cli_size ) ) == -1 )
+                LOG_ERROR( "Error accepting connection: %s\n", strerror( errno ) );
             else
             {        
-                LOG_LOG(log_fd, "Connected by %s:%u\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
+                LOG_LOG( "Connected by %s:%u\n", inet_ntoa( cli_addr.sin_addr ), ntohs( cli_addr.sin_port ) );
 
                 /* workaround solution to situation where select() return while not actually be ready to read*/
-                fcntl(client_sock, F_SETFL, O_NONBLOCK); 
+                fcntl( client_sock, F_SETFL, O_NONBLOCK ); 
               
-                for (i = 0; i < FD_SETSIZE; ++i)
+                for ( i = 0; i < FD_SETSIZE; ++i )
                 {
-                    if (client[i] == -1)
+                    if ( client[i] == -1 )
                     {
                         client[i] = client_sock;
                         break;
                     }
                 }
                 
-                if (i == FD_SETSIZE)
+                if ( i == FD_SETSIZE )
                 {
-                    close_socket(client_sock);
-                    LOG_ERROR(log_fd, "Error too many clients\n");
+                    close_socket( client_sock );
+                    LOG_ERROR( "Error too many clients\n" );
                 }
                 else
                 {
-                    if (maxi < i) maxi = i;
-                    if (maxfd < client_sock) maxfd = client_sock;
-                    FD_SET(client_sock, &allset);
+                    if ( maxi < i ) maxi = i;
+                    if ( maxfd < client_sock ) maxfd = client_sock;
+                    FD_SET( client_sock, &allset );
                 }            
             }
 
-            if (--nready <= 0) continue;
+            if ( --nready <= 0 ) continue;
         }        
          
-        for (i = 0; i <= maxi; ++i)
+        for ( i = 0; i <= maxi; ++i )
         {
-            if (client[i] >= 0 && FD_ISSET(client[i], &rset))
+            if ( client[i] >= 0 && FD_ISSET( client[i], &rset ) )
             {
-                if ((readret = recv(client[i], buf, BUF_SIZE, 0)) > 0)
+                if ( ( readret = recv( client[i], buf, BUF_SIZE, 0 ) ) > 0 )
                 {
-                    if (send(client[i], buf, readret, 0) != readret)
-                        LOG_ERROR(log_fd, "Error sending to client: %s\n", strerror(errno));
-                    memset(buf, 0, BUF_SIZE);
+                    if ( send( client[i], buf, readret, 0 ) != readret )
+                        LOG_ERROR( "Error sending to client: %s\n", strerror( errno ) );
+                    memset( buf, 0, BUF_SIZE );
                 }                                       
 
-                if (readret == -1)
-                    LOG_ERROR(log_fd, "Error reading from client socket: %s\n", strerror(errno));
+                if ( readret == -1 )
+                    LOG_ERROR( "Error reading from client socket: %s\n", strerror( errno ) );
 
-                if (readret == 0)
+                if ( readret == 0 )
                 {
-                    LOG_LOG(log_fd, "Close client's fd %d\n", client[i]);
-                    close_socket(client[i]);
-                    FD_CLR(client[i], &allset);
+                    LOG_LOG( "Close client's fd %d\n", client[i] );
+                    close_socket( client[i] );
+                    FD_CLR( client[i], &allset );
                     client[i] = -1;
                 }
-                if (--nready <= 0) break;
+                if ( --nready <= 0 ) break;
             }
         }
     }
 
-    close_socket(sock);
+    close_socket( sock );
+
+    log_close();
 
     return EXIT_SUCCESS;
 }
