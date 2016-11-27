@@ -13,9 +13,10 @@
 
 #include <fcntl.h>
 #include <stdlib.h>
+#include <string.h>
 #include <arpa/inet.h>
 
-void listening(int ser_sock, client_info **clients, int *maxi, int *maxfd, fd_set *allset, char *buf, ssize_t *len)
+void listening(int ser_sock, client_info **clients, int *maxi, int *maxfd, fd_set *allset)
 {
     fd_set rset;
     struct sockaddr_in cli_addr;
@@ -39,6 +40,16 @@ void listening(int ser_sock, client_info **clients, int *maxi, int *maxfd, fd_se
                     clients[i] = ( client_info * )malloc( sizeof( client_info ) );
                     clients[i]->addr = cli_addr;
                     clients[i]->sockfd = cli_sock;
+                    clients[i]->meth = METHOD_NONE;
+                    memset( clients[i]->uri, 0, 256 );
+                    memset( clients[i]->version, 0, 10 );
+                    clients[i]->conn = CONN_NONE;
+                    memset( clients[i]->contype, 0, 128 );
+                    clients[i]->conlen = -1;
+                    memset( clients[i]->buf, 0, BUF_SIZE );
+                    clients[i]->len = -1;
+                    clients[i]->ready = FALSE; 
+                    clients[i]->done = FALSE; 
                     break;
                 }
             }
@@ -68,7 +79,14 @@ void listening(int ser_sock, client_info **clients, int *maxi, int *maxfd, fd_se
     {
         if ( clients[i] != NULL && FD_ISSET( clients[i]->sockfd, &rset ) )
         {
-            if( ( *len = recv( clients[i]->sockfd, buf, BUF_SIZE, 0 ) ) == 0 )
+            memset( clients[i]->buf, 0, BUF_SIZE );
+            clients[i]->len = -1;            
+
+            if( ( clients[i]->len = _recv( clients[i]->sockfd, clients[i]->buf, BUF_SIZE, 0 ) ) > 0 )
+            {
+                clients[i]->ready = TRUE;
+            }
+            else if( clients[i]->len == 0 )
             {
                 LOG_INFO( "Connection to %s:%u closed\n", inet_ntoa( clients[i]->addr.sin_addr ), ntohs( clients[i]->addr.sin_port ) );
                 _close( clients[i]->sockfd );
@@ -76,6 +94,7 @@ void listening(int ser_sock, client_info **clients, int *maxi, int *maxfd, fd_se
                 free( clients[i] );
                 clients[i] = NULL;
             }
+
             if ( --nready <= 0 ) break;
         }
     }

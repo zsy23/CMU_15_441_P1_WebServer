@@ -13,6 +13,6 @@
 
 #include "global.h"
 
-void listening(int ser_sock, client_info **cients, int *maxi, int *maxfd, fd_set *allset, char *buf, ssize_t *len);
+void listening(int ser_sock, client_info **cients, int *maxi, int *maxfd, fd_set *allset);
 
 #endif

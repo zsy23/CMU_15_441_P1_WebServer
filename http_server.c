@@ -11,9 +11,11 @@
 #include "log.h"
 #include "socket.h"
 #include "core.h"
+#include "http.h"
 
 #include <stdlib.h>
 #include <string.h>
+#include <arpa/inet.h>
 
 int get_args(int argc, char *argv[], int *http, int *https, char *log, char *lock, char *www, char *cgi, char *prikey, char *certificate);
 
@@ -44,12 +46,10 @@ int main( int argc, char *argv[] )
     char prikey_file[256], certificate_file[256];
     int sock;
     int maxi, maxfd;
-    int i, r;
     fd_set allset;
     client_info *clients[FD_SETSIZE];
     struct sockaddr_in addr;
-    char buf[BUF_SIZE];
-    ssize_t len;
+    int i, r;
 
     // get eight arguments from input
     if( ( r = get_args(argc, argv, &http_port, &https_port, log_file, lock_file, www_folder, cgi_path, prikey_file, certificate_file) ) == -1 )    
@@ -82,10 +82,15 @@ int main( int argc, char *argv[] )
     // loop for accept and process
     while( 1 )
     {
-        memset( buf, 0, BUF_SIZE );
-        len = 0;
-        listening(sock, clients, &maxi, &maxfd, &allset, buf, &len ); 
-        if( len > 0 ) fprintf( stdout, "msg: %s", buf );
+        listening(sock, clients, &maxi, &maxfd, &allset); 
+        for( i = 0; i <= maxi; ++i )
+        {
+            if( clients[i] != NULL && clients[i]->ready == TRUE )
+            {
+                fprintf( stdout, "Msg from %s:%u: %s", inet_ntoa( clients[i]->addr.sin_addr ), ntohs( clients[i]->addr.sin_port), clients[i]->buf );
+                clients[i]->ready = FALSE;
+            }
+        }
     }
 
     // close server socket
