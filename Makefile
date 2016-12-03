@@ -10,7 +10,7 @@
 default: http_server
 
 http_server:
-	@gcc log.c socket.c core.c http_server.c -o http_server -Wall -Werror
+	@gcc util.c log.c socket.c core.c http.c http_server.c -o http_server -Wall -Werror
 
 clean:
 	@rm http_server

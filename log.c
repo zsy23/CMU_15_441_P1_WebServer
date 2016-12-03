@@ -3,8 +3,6 @@
 *                                                                             *
 * Description: This file contains the C source code for the logging module.   *
 *              Logging contains 5 levels: NONE, ERROR, WARNING, INFO, DEBUG.   *
-*              Fix LOG_RUN_LEVEL to variable log_run_level. Add log file      * 
-*              creation and close. Add timestamp to log.                      *
 *                                                                             *
 * Author: Shiyu Zhang <1181856726@qq.com>                                     *
 *                                                                             *
@@ -15,16 +13,22 @@
 #include <time.h>
 #include <assert.h>
 
+// logging file pointer
 FILE *log_fp = NULL;
+
+// logging level
 log_level log_run_level = LOG_LEVEL_DEBUG;
+
+// logging level descriptions
 const char *log_level_strings [] = {
-	"   NONE", // 0
-	"  ERROR", // 1
+	"NONE   ", // 0
+	"ERROR  ", // 1
 	"WARNING", // 2
-	"   INFO", // 3
-	"  DEBUG"  // 4
+	"INFO   ", // 3
+	"DEBUG  ", // 4
 };
  
+// init logging level and file
 void log_init( log_level level, const char *filename )
 {
     log_run_level = level; 
@@ -37,18 +41,21 @@ void log_init( log_level level, const char *filename )
     assert( log_fp != NULL );
 }
 
+// set logging level
 void log_set_level( log_level level )
 { 
     log_run_level = level; 
 }
 
-void log_get_timestamp( char *buf )
+// get logging timestamp
+void log_get_timestamp( char *buf, size_t size )
 {
     time_t now;
     time( &now );
-    strftime( buf, 64, "%Y/%m/%d %T", localtime( &now ) );
+    strftime( buf, size, "%Y/%m/%d %T", localtime( &now ) );
 }
 
+// close logging file
 void log_close() 
 { 
     if ( log_fp != stderr ) fclose( log_fp ); 

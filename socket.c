@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <unistd.h>
 
+// robust socket()
 int _socket( int domain, int type, int protocol)
 {
     int sockfd;
@@ -25,6 +26,7 @@ int _socket( int domain, int type, int protocol)
     return sockfd;
 }
 
+// robust bind()
 int _bind( int sockfd, const struct sockaddr *addr, socklen_t addrlen )
 {
     if ( bind( sockfd, addr, addrlen ) )
@@ -36,6 +38,7 @@ int _bind( int sockfd, const struct sockaddr *addr, socklen_t addrlen )
     return 0;
 }
 
+// robust listen()
 int _listen( int sockfd, int backlog )
 {
     if ( listen( sockfd, backlog ) )
@@ -47,6 +50,7 @@ int _listen( int sockfd, int backlog )
     return 0;
 }
 
+// robust accept()
 int _accept( int sockfd, struct sockaddr *addr, socklen_t *addrlen )
 {
     int client_sockfd;
@@ -59,6 +63,7 @@ int _accept( int sockfd, struct sockaddr *addr, socklen_t *addrlen )
     return client_sockfd;
 }
 
+// robust select()
 int _select( int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout )
 {
     int nready;
@@ -66,16 +71,7 @@ int _select( int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, str
     return nready;
 }
 
-int _close( int sockfd ) 
-{
-    if ( close( sockfd ) )
-    {
-        LOG_ERROR( "Failed closing socket: %s\n", strerror( errno ) );
-        return -1;
-    }
-    return 0;
-}
-
+// robust resc()
 ssize_t _recv( int sockfd, void *buf, size_t len, int flags)
 {
     ssize_t recv_len;
@@ -85,6 +81,7 @@ ssize_t _recv( int sockfd, void *buf, size_t len, int flags)
     return recv_len;
 }
 
+// robust send()
 ssize_t _send( int sockfd, const void *buf, size_t len, int flags)
 {
     ssize_t send_len;
@@ -92,4 +89,15 @@ ssize_t _send( int sockfd, const void *buf, size_t len, int flags)
         LOG_ERROR( "Failed sending message: %s\n", strerror( errno ) );
 
     return send_len;   
+}
+
+// robust close()
+int _close( int sockfd ) 
+{
+    if ( close( sockfd ) )
+    {
+        LOG_ERROR( "Failed closing socket: %s\n", strerror( errno ) );
+        return -1;
+    }
+    return 0;
 }

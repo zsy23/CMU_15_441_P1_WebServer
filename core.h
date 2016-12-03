@@ -1,8 +1,8 @@
 /******************************************************************************
 * core.h                                                                      *
 *                                                                             *
-* Description: This file contains the C declaration code for the core         * 
-*              networking.                                                    *
+* Description: This file contains the C declaration code for the select()     * 
+*              based core networking.                                         *
 *                                                                             *
 * Author: Shiyu Zhang <1181856726@qq.com>                                     *
 *                                                                             *
@@ -11,8 +11,21 @@
 #ifndef _CORE_H_
 #define _CORE_H_
 
-#include "global.h"
+#include "client.h"
+#include "util.h"
 
-void listening(int ser_sock, client_info **cients, int *maxi, int *maxfd, fd_set *allset);
+#define CLIENT_MAX_NUM ( FD_SETSIZE - 24 )
+#define TIMEOUT_SEC 23
+
+typedef struct
+{
+    int sockfd;
+    struct sockaddr_in addr;
+} sock_info;
+
+define_list( sock_info )
+
+// blocking listening with timeout and return client info
+void listening(int ser_sock, client_info **cients, int *maxi, int *maxfd, fd_set *allset, struct timeval *timeout, list( sock_info ) *unacc_head);
 
 #endif

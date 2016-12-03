@@ -1,7 +1,8 @@
 /******************************************************************************
 * core.c                                                                      *
 *                                                                             *
-* Description: This file contains the C source code for the core networking.  *
+* Description: This file contains the C source code for the select() based    *
+*              core networking.                                               *
 *                                                                             *
 * Author: Shiyu Zhang <1181856726@qq.com>                                     *
 *                                                                             *
@@ -13,10 +14,10 @@
 
 #include <fcntl.h>
 #include <stdlib.h>
-#include <string.h>
 #include <arpa/inet.h>
 
-void listening(int ser_sock, client_info **clients, int *maxi, int *maxfd, fd_set *allset)
+// blocking listening with timeout and return client info
+void listening(int ser_sock, client_info **clients, int *maxi, int *maxfd, fd_set *allset, struct timeval *timeout, list( sock_info ) *unacc_head)
 {
     fd_set rset;
     struct sockaddr_in cli_addr;
@@ -26,77 +27,143 @@ void listening(int ser_sock, client_info **clients, int *maxi, int *maxfd, fd_se
 
     rset = *allset;
 
-    nready = _select( *maxfd + 1, &rset, NULL, NULL, NULL );
+    // wait for inbound io
+    nready = _select( *maxfd + 1, &rset, NULL, NULL, timeout );
 
-    if ( FD_ISSET( ser_sock, &rset ) )
+    if( nready <= 0 )
     {
-        addrlen = sizeof( struct sockaddr_in ); 
-        if( ( cli_sock = _accept( ser_sock, ( struct sockaddr * )&cli_addr, &addrlen ) ) != -1 )
-        { 
-            for ( i = 0; i < FD_SETSIZE; ++i )
-            {
-                if ( clients[i] == NULL )
-                {
-                    clients[i] = ( client_info * )malloc( sizeof( client_info ) );
-                    clients[i]->addr = cli_addr;
-                    clients[i]->sockfd = cli_sock;
-                    clients[i]->meth = METHOD_NONE;
-                    memset( clients[i]->uri, 0, 256 );
-                    memset( clients[i]->version, 0, 10 );
-                    clients[i]->conn = CONN_NONE;
-                    memset( clients[i]->contype, 0, 128 );
-                    clients[i]->conlen = -1;
-                    memset( clients[i]->buf, 0, BUF_SIZE );
-                    clients[i]->len = -1;
-                    clients[i]->ready = FALSE; 
-                    clients[i]->done = FALSE; 
-                    break;
-                }
-            }
-                
-            if ( i == FD_SETSIZE )
-            {
-                _close( cli_sock );
-                LOG_ERROR( "Failed accepting client because no fd available\n" );
-            }
-            else
-            {
-                LOG_INFO( "Connected by %s:%u\n", inet_ntoa( cli_addr.sin_addr ), ntohs( cli_addr.sin_port ) );
-
-                if ( *maxi < i ) *maxi = i;
-                if ( *maxfd < cli_sock ) *maxfd = cli_sock;
-                FD_SET( cli_sock, allset );
-
-                // workaround solution to situation where select() return while not actually be ready to read
-                fcntl( cli_sock, F_SETFL, O_NONBLOCK ); 
-            }            
-        }
-
-        if ( --nready <= 0 ) return;
-    }        
-         
-    for ( i = 0; i <= *maxi; ++i )
-    {
-        if ( clients[i] != NULL && FD_ISSET( clients[i]->sockfd, &rset ) )
+        // all clients must be timeout
+        for( i = 0; i <= *maxi; ++i )
         {
-            memset( clients[i]->buf, 0, BUF_SIZE );
-            clients[i]->len = -1;            
-
-            if( ( clients[i]->len = _recv( clients[i]->sockfd, clients[i]->buf, BUF_SIZE, 0 ) ) > 0 )
-            {
-                clients[i]->ready = TRUE;
-            }
-            else if( clients[i]->len == 0 )
+            if( clients[i] != NULL )
             {
                 LOG_INFO( "Connection to %s:%u closed\n", inet_ntoa( clients[i]->addr.sin_addr ), ntohs( clients[i]->addr.sin_port ) );
+                _close( clients[i]->sockfd );
+                free( clients[i] );
+                clients[i] = NULL;
+            }
+        }
+
+        // reset data concerned
+        FD_ZERO( &allset );
+        *maxi = -1;
+        *maxfd = ser_sock;
+    }
+    else
+    {
+        // process inbound io
+        if( FD_ISSET( ser_sock, &rset ) )
+        {
+            // new connection from client
+            addrlen = sizeof( struct sockaddr_in ); 
+            if( ( cli_sock = _accept( ser_sock, ( struct sockaddr * )&cli_addr, &addrlen ) ) != -1 )
+            { 
+                // search for available client slot
+                for( i = 0; i < CLIENT_MAX_NUM; ++i )
+                {
+                    if( clients[i] == NULL )
+                    {
+                        // find one and init client_info structure
+                        clients[i] = ( client_info * )malloc( sizeof( client_info ) );
+                        clients[i]->addr = cli_addr;
+                        clients[i]->sockfd = cli_sock;
+                        CLR_BUF( clients[i]->buf, BUF_SIZE );
+                        clients[i]->len = -1;
+                        clients[i]->ready = FALSE; 
+                        clients[i]->timeout = time(NULL) + TIMEOUT_SEC;
+                        clients[i]->meth = METHOD_NONE;
+                        CLR_BUF( clients[i]->uri, URI_SIZE );
+                        CLR_BUF( clients[i]->version, VERSION_SIZE );
+                        clients[i]->conn = CONN_NONE;
+                        CLR_BUF( clients[i]->contype, CONTYPE_SIZE );
+                        clients[i]->conlen = -1;
+                        clients[i]->left = -1;
+                        CLR_BUF( clients[i]->msg, MSG_SIZE );
+                        clients[i]->state = STATE_START;
+                        clients[i]->hdr_len = 0;
+                        CLR_BUF( clients[i]->token, TOKEN_SIZE );
+                        clients[i]->done = FALSE; 
+                        break;
+                    }
+                }
+                
+                // there's no available client slot
+                if( i == CLIENT_MAX_NUM )
+                {
+                    // add unable served client socket to list
+                    list( sock_info ) *unacc_sock = ( list( sock_info ) * )malloc( sizeof( list( sock_info ) ) );
+                    unacc_sock->data.sockfd = cli_sock;
+                    unacc_sock->data.addr = cli_addr;
+                    if( unacc_head == NULL )
+                    {
+                        unacc_sock->next = NULL;
+                        unacc_head = unacc_sock;
+                    }
+                    else
+                    {
+                        unacc_sock->next = unacc_head->next;
+                        unacc_head->next = unacc_sock;
+                    }
+                }
+                else
+                {
+                    // already find one client slot and inited, then update data concerned
+                    LOG_INFO( "Connected by %s:%u\n", inet_ntoa( cli_addr.sin_addr ), ntohs( cli_addr.sin_port ) );
+
+                    if( *maxi < i ) *maxi = i;
+                    if( *maxfd < cli_sock ) *maxfd = cli_sock;
+                    FD_SET( cli_sock, allset );
+
+                    // workaround solution to situation where select() return while not actually be ready to read
+                    fcntl( cli_sock, F_SETFL, O_NONBLOCK ); 
+                }            
+            }
+
+            --nready;
+        }           
+         
+        if( nready > 0 )
+        {
+            // there is unprocessed io
+            for( i = 0; i <= *maxi; ++i )
+            {
+                if( clients[i] != NULL && FD_ISSET( clients[i]->sockfd, &rset ) )
+                {
+                    CLR_BUF( clients[i]->buf, BUF_SIZE );
+                    clients[i]->len = -1;            
+
+                    // receive client's message
+                    if( ( clients[i]->len = _recv( clients[i]->sockfd, clients[i]->buf, BUF_SIZE, 0 ) ) > 0 )
+                    {
+                        clients[i]->ready = TRUE;
+                        clients[i]->timeout = time(NULL) + TIMEOUT_SEC;
+                    }
+                    else if( clients[i]->len == 0 )
+                    {
+                        // remote client close the connection and update data concerned
+                        LOG_INFO( "Connection to %s:%u closed normally\n", inet_ntoa( clients[i]->addr.sin_addr ), ntohs( clients[i]->addr.sin_port ) );
+                        _close( clients[i]->sockfd );
+                        FD_CLR( clients[i]->sockfd, allset );
+                        free( clients[i] );
+                        clients[i] = NULL;
+                    }
+
+                    if( --nready <= 0 ) break;
+                }
+            }
+        }
+
+        // check if there is client timeout
+        for ( i = 0; i <= *maxi; ++i )
+        {
+            if( clients[i] != NULL && clients[i]->timeout <= time(NULL) )
+            {
+                LOG_INFO( "Connection to %s:%u closed due to timeout\n", inet_ntoa( clients[i]->addr.sin_addr ), ntohs( clients[i]->addr.sin_port ) );
                 _close( clients[i]->sockfd );
                 FD_CLR( clients[i]->sockfd, allset );
                 free( clients[i] );
                 clients[i] = NULL;
             }
-
-            if ( --nready <= 0 ) break;
         }
     }
 }
-
