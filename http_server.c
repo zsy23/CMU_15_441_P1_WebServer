@@ -119,7 +119,7 @@ int main( int argc, char *argv[] )
     struct timeval timeout;
     client_info *clients[CLIENT_MAX_NUM];
     struct sockaddr_in addr;
-    list( sock_info ) *unacc_head, *unacc_sock;
+    list( sock_info ) unacc_head, *unacc_sock, *unacc_tmp;
     time_t now;
     char date[DATE_SIZE];
     int i, r;
@@ -162,13 +162,13 @@ int main( int argc, char *argv[] )
     // loop for accept and process
     while( 1 )
     {
-        unacc_head = NULL;
+        unacc_head.next =  NULL;
 
         // block to wait for inboound io
-        listening(sock, clients, &maxi, &maxfd, &allset, &timeout, unacc_head); 
+        listening(sock, clients, &maxi, &maxfd, &allset, &timeout, &unacc_head); 
 
         // process unable to served clients
-        unacc_sock = unacc_head;
+        unacc_sock = unacc_head.next;
         while( unacc_sock != NULL )
         {
             CLR_BUF( date, DATE_SIZE );
@@ -179,9 +179,9 @@ int main( int argc, char *argv[] )
 
             _close( unacc_sock->data.sockfd );
             LOG_ERROR( "Unable to accept anymore connection\n" );
-            unacc_head = unacc_sock;
+            unacc_tmp = unacc_sock;
             unacc_sock = unacc_sock->next;
-            free( unacc_head );
+            free( unacc_tmp );
         }
 
         // process client resquest
@@ -190,15 +190,19 @@ int main( int argc, char *argv[] )
             // find one
             if( clients[i] != NULL && clients[i]->ready == TRUE )
             {
+                LOG_INFO( "Request From %s:%u( %ld ):\n%s\n",
+                          inet_ntoa( clients[i]->addr.sin_addr ), ntohs( clients[i]->addr.sin_port ), 
+                          clients[i]->len, clients[i]->buf );
+
                 // parse HTTP/1.1 request
                 parse( clients[i] );  
-/*
-                fprintf( stdout, "Client(%s:%u) meth: %d, uri: %s, version: %s, conn: %d, contype: %s, conlen: %d, done: %d, state: %d, hdr_len: %d, token:%s\nleft: %d msg: %s\n", 
+
+                LOG_DEBUG( "Client(%s:%u) meth: %d, uri: %s, version: %s, conn: %d, contype: %s, conlen: %d, done: %d, state: %d, hdr_len: %d, token:%s\nleft: %d msg: %s\n", 
                         inet_ntoa( clients[i]->addr.sin_addr ), ntohs( clients[i]->addr.sin_port ), 
                         clients[i]->meth, clients[i]->uri, clients[i]->version, clients[i]->conn,
                         clients[i]->contype, clients[i]->conlen, clients[i]->done, clients[i]->state,
                         clients[i]->hdr_len, clients[i]->token, clients[i]->left, clients[i]->msg );
-*/
+
                 // if client's parse end, process request
                 if( clients[i]->done == TRUE )
                 {                    
@@ -207,7 +211,7 @@ int main( int argc, char *argv[] )
                     // persistent connection
                     if( clients[i]->conn == CONN_CLOSE )
                     {
-                        LOG_INFO( "Connection to %s:%u closed\n", inet_ntoa( clients[i]->addr.sin_addr ), ntohs( clients[i]->addr.sin_port ) );
+                        LOG_INFO( "Connection to %s:%u closed normally\n", inet_ntoa( clients[i]->addr.sin_addr ), ntohs( clients[i]->addr.sin_port ) );
                         _close( clients[i]->sockfd );
                         FD_CLR( clients[i]->sockfd, &allset );
                         free( clients[i] );

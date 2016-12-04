@@ -37,7 +37,7 @@ void listening(int ser_sock, client_info **clients, int *maxi, int *maxfd, fd_se
         {
             if( clients[i] != NULL )
             {
-                LOG_INFO( "Connection to %s:%u closed\n", inet_ntoa( clients[i]->addr.sin_addr ), ntohs( clients[i]->addr.sin_port ) );
+                LOG_INFO( "Connection to %s:%u closed due to timeout\n", inet_ntoa( clients[i]->addr.sin_addr ), ntohs( clients[i]->addr.sin_port ) );
                 _close( clients[i]->sockfd );
                 free( clients[i] );
                 clients[i] = NULL;
@@ -94,16 +94,8 @@ void listening(int ser_sock, client_info **clients, int *maxi, int *maxfd, fd_se
                     list( sock_info ) *unacc_sock = ( list( sock_info ) * )malloc( sizeof( list( sock_info ) ) );
                     unacc_sock->data.sockfd = cli_sock;
                     unacc_sock->data.addr = cli_addr;
-                    if( unacc_head == NULL )
-                    {
-                        unacc_sock->next = NULL;
-                        unacc_head = unacc_sock;
-                    }
-                    else
-                    {
-                        unacc_sock->next = unacc_head->next;
-                        unacc_head->next = unacc_sock;
-                    }
+                    unacc_sock->next = unacc_head->next;
+                    unacc_head->next = unacc_sock;
                 }
                 else
                 {
@@ -146,7 +138,7 @@ void listening(int ser_sock, client_info **clients, int *maxi, int *maxfd, fd_se
                         FD_CLR( clients[i]->sockfd, allset );
                         free( clients[i] );
                         clients[i] = NULL;
-                    }
+                    } 
 
                     if( --nready <= 0 ) break;
                 }

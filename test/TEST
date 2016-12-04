@@ -1,0 +1,8 @@
+Test by test_cp2.py
+
+Usage:
+	python test_cp2.py
+Then choose test case to run
+Finally you need to look at LOG and corresponding case in cp2_case.txt to check correctness manually.
+
+TODO: Use ElectricFence and Valgrind to test

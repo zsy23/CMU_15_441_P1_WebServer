@@ -125,12 +125,14 @@ void parse( client_info *client )
                     case LF:
                         CLR_BUF( client->token, TOKEN_SIZE );
                         client->state = STATE_BAD; 
+                        LOG_DEBUG( "Bad Request: method lf\n" );
                         break;
                     default:
                         if( strlen( client->token ) >= ( TOKEN_SIZE - 1 ) )
                         {
                             CLR_BUF( client->token, TOKEN_SIZE );
                             client->state = STATE_BAD;
+                            LOG_DEBUG( "Bad Request: method token too long\n" );
                         }
                         else
                             strncat( client->token, &c, 1 );
@@ -145,6 +147,7 @@ void parse( client_info *client )
                     case CR:
                     case LF:
                         client->state = STATE_BAD;
+                        LOG_DEBUG( "Bad Request: sep met uri lf\n" );
                         break;
                     default:
                         strncat( client->token, &c, 1 );
@@ -164,12 +167,14 @@ void parse( client_info *client )
                     case LF:
                         CLR_BUF( client->token, TOKEN_SIZE );
                         client->state = STATE_BAD;
+                        LOG_DEBUG( "Bad Request: uri lf\n" );
                         break;
                     default:
                         if( strlen( client->token ) >= ( TOKEN_SIZE - 1 ) )
                         {
                             CLR_BUF( client->token, TOKEN_SIZE );
                             client->state = STATE_BAD;
+                            LOG_DEBUG( "Bad Request: uri token too long\n" );
                         }
                         else
                             strncat( client->token, &c, 1 );
@@ -184,6 +189,7 @@ void parse( client_info *client )
                     case CR:
                     case LF:
                         client->state = STATE_BAD;
+                        LOG_DEBUG( "Bad Request: sep uri ver lf\n" );
                         break;
                     default:
                         strncat( client->token, &c, 1 );
@@ -209,12 +215,14 @@ void parse( client_info *client )
                     case LF:
                         CLR_BUF( client->token, TOKEN_SIZE );
                         client->state = STATE_BAD;
+                        LOG_DEBUG( "Bad Request: version lf\n" );
                         break;
                     default:
                         if( strlen( client->token ) >= ( TOKEN_SIZE - 1 ) )
                         {
                             CLR_BUF( client->token, TOKEN_SIZE );
                             client->state = STATE_BAD;
+                            LOG_DEBUG( "Bad Request: version too long\n" );
                         }
                         else
                             strncat( client->token, &c, 1 );
@@ -224,7 +232,10 @@ void parse( client_info *client )
             case STATE_FIR_CR:
                 // +1 because first LF
                 if( ++client->hdr_len > ( HDR_MAX_SIZE + 1 ) )
+                {
                     client->state = STATE_BAD;
+                    LOG_DEBUG( "Bad Request: fir cr header too long\n" );
+                }
 
                 switch( c )
                 {
@@ -233,13 +244,17 @@ void parse( client_info *client )
                         break;
                     default:
                         client->state = STATE_BAD;
+                        LOG_DEBUG( "Bad Request: fir cr other\n" );
                         break;
                 }
                 break;
             case STATE_FIR_LF:
                 // check header length
                 if( ++client->hdr_len > ( HDR_MAX_SIZE + 1 ) )
+                {
                     client->state = STATE_BAD;
+                    LOG_DEBUG( "Bad Request: fir lf header too long\n" );
+                }
 
                 switch( c )
                 {
@@ -255,6 +270,7 @@ void parse( client_info *client )
                     case LF:
                     case ':':
                         client->state = STATE_BAD;
+                        LOG_DEBUG( "Bad Request: fir lf :\n" );
                         break;
                     default:
                         strncat( client->token, &c, 1 );
@@ -269,8 +285,11 @@ void parse( client_info *client )
                         client->state = STATE_SEC_LF;
                         if( client->conlen <= 0 )
                             client->state = STATE_END;
-                        else if( client->conlen > MSG_MAX_SIZE )
+                        else if( client->conlen > MSG_SIZE )
+                        {
                             client->state = STATE_BAD;
+                            LOG_DEBUG( "Bad Request: sec cr msg too long\n" );
+                        }
                         else
                         {
                             client->left = client->conlen;
@@ -279,12 +298,16 @@ void parse( client_info *client )
                         break;
                     default:
                         client->state = STATE_BAD;
+                        LOG_DEBUG( "Bad Request: sec cr other\n" );
                         break;
                 }
                 break;
             case STATE_HDR_STA:
                 if( ++client->hdr_len > ( HDR_MAX_SIZE + 1 ) )
+                {
                     client->state = STATE_BAD;
+                    LOG_DEBUG( "Bad Request: hdr sta header too long\n" );
+                }
 
                 switch( c )
                 {
@@ -294,6 +317,7 @@ void parse( client_info *client )
                     case CR:
                     case LF:
                         client->state = STATE_BAD;
+                        LOG_DEBUG( "Bad Request: hdr sta lf\n" );
                         break;
                     default:
                         strncat( client->token, &c, 1 );
@@ -303,7 +327,10 @@ void parse( client_info *client )
                 break;
             case STATE_HDR_FIE:
                 if( ++client->hdr_len > ( HDR_MAX_SIZE + 1 ) )
+                {
                     client->state = STATE_BAD;
+                    LOG_DEBUG( "Bad Request: hdr fie header too long\n" );
+                }
 
                 switch( c )
                 {
@@ -317,6 +344,7 @@ void parse( client_info *client )
                     case LF:
                         CLR_BUF( client->token, TOKEN_SIZE );
                         client->state = STATE_BAD;
+                        LOG_DEBUG( "Bad Request: hdr fie lf\n" );
                         break;
                     case ':':
                         to_lower( client->token, strlen( client->token ) );
@@ -329,6 +357,7 @@ void parse( client_info *client )
                         {
                             CLR_BUF( client->token, TOKEN_SIZE );
                             client->state = STATE_BAD;
+                            LOG_DEBUG( "Bad Request: hdr fie token too long\n" );
                         }
                         else
                             strncat( client->token, &c, 1 );
@@ -337,7 +366,10 @@ void parse( client_info *client )
                 break;
             case STATE_HDR_SEP_FIE_COL:
                 if( ++client->hdr_len > ( HDR_MAX_SIZE + 1 ) )
+                {
                     client->state = STATE_BAD;
+                    LOG_DEBUG( "Bad Request: hdr sep fie col header too long\n" );
+                }
 
                 switch( c )
                 {
@@ -348,12 +380,16 @@ void parse( client_info *client )
                         break;
                     default:
                         client->state = STATE_BAD;
+                        LOG_DEBUG( "Bad Request: hdr sep fie col other\n" );
                         break;
                 }
                 break;
             case STATE_HDR_COL:
                 if( ++client->hdr_len > ( HDR_MAX_SIZE + 1 ) )
+                {
                     client->state = STATE_BAD;
+                    LOG_DEBUG( "Bad Request: hdr col header too long\n" );
+                }
 
                 switch( c )
                 {
@@ -363,6 +399,7 @@ void parse( client_info *client )
                     case CR:
                     case LF:
                         client->state = STATE_BAD;
+                        LOG_DEBUG( "Bad Request: hdr col lf\n" );
                         break;
                     default:
                         strncat( client->token, &c, 1 );
@@ -372,7 +409,10 @@ void parse( client_info *client )
                 break;
             case STATE_HDR_SEP_COL_VAL:
                 if( ++client->hdr_len > ( HDR_MAX_SIZE + 1 ) )
+                {
                     client->state = STATE_BAD;
+                    LOG_DEBUG( "Bad Request: hdr sep col val header too long\n" );
+                }
 
                 switch( c )
                 {
@@ -381,6 +421,7 @@ void parse( client_info *client )
                     case CR:
                     case LF:
                         client->state = STATE_BAD;
+                        LOG_DEBUG( "Bad Request: hdr sep col val lf\n" );
                         break;
                     default:
                         strncat( client->token, &c, 1 );
@@ -390,7 +431,10 @@ void parse( client_info *client )
                 break;
             case STATE_HDR_VAL:
                 if( ++client->hdr_len > ( HDR_MAX_SIZE + 1 ) )
+                {
                     client->state = STATE_BAD;
+                    LOG_DEBUG( "Bad Request: hdr val header too long\n" );
+                }
 
                 switch( c )
                 {
@@ -408,21 +452,30 @@ void parse( client_info *client )
                             else if( strncmp( value, "close", MAX( strlen( value ), 5 ) ) == 0 )
                                 client->conn = CONN_CLOSE;
                             else
+                            {
                                 client->state = STATE_BAD;
+                                LOG_DEBUG( "Bad Request: hdr conn unknown\n" );
+                            }
                         }
                         else if( strncmp( field, "content-length", MAX( strlen( field ), 14 ) ) == 0 )
                         {
                             if( is_uint( value, strlen( value ) ) == TRUE )
                                 client->conlen = atoi( value );
                             else
+                            {
                                 client->state = STATE_BAD;
+                                LOG_DEBUG( "Bad Request: hdr conlen no uint\n" );
+                            }
                         }
                         else if( strncmp( field, "content-type", MAX( strlen( field ), 12 ) ) == 0 )
                         {
                             if( check_contype( value, strlen( value ) ) == TRUE ) 
                                 snprintf( client->contype, CONTYPE_SIZE, "%s", value );
                             else
+                            {
                                 client->state = STATE_BAD;
+                                LOG_DEBUG( "Bad Request: hdr contype not sup\n" );
+                            }
                         }
                         memset( field, 0, TOKEN_SIZE );
                         memset( value, 0, TOKEN_SIZE );
@@ -432,12 +485,14 @@ void parse( client_info *client )
                     case LF:
                         CLR_BUF( client->token, TOKEN_SIZE );
                         client->state = STATE_BAD;
+                        LOG_DEBUG( "Bad Request: hdr val lf\n" );
                         break;
                     default:
                         if( strlen( client->token ) >= ( TOKEN_SIZE - 1 ) )
                         {
                             CLR_BUF( client->token, TOKEN_SIZE );
                             client->state = STATE_BAD;
+                            LOG_DEBUG( "Bad Request: hdr val token too long\n" );
                         }
                         else
                             strncat( client->token, &c, 1 );
@@ -639,7 +694,7 @@ void respond( const struct sockaddr_in addr, const int sockfd, const char *versi
     }
 
     size = strlen( response );
-    LOG_INFO( "Response Header To %s:%u( %d ): %s\n", inet_ntoa( addr.sin_addr ), ntohs( addr.sin_port ), size, response );
+    LOG_INFO( "Response Header To %s:%u( %d ):\n%s\n", inet_ntoa( addr.sin_addr ), ntohs( addr.sin_port ), size, response );
 
     if( mi->len > 0 )
     {
@@ -647,12 +702,12 @@ void respond( const struct sockaddr_in addr, const int sockfd, const char *versi
         memcpy( response + size, mi->msg, mi->len );
         size += mi->len;
     
-        LOG_INFO( "Message Body To %s:%u( %d ): %s\n", inet_ntoa( addr.sin_addr ), ntohs( addr.sin_port ), mi->len, mi->msg );
+        LOG_INFO( "Message Body To %s:%u( %d ):\n%s\n", inet_ntoa( addr.sin_addr ), ntohs( addr.sin_port ), mi->len, mi->msg );
     }
 
     // send response to client
     if( _send( sockfd, response, size, 0 ) < size )
-        LOG_ERROR( "Response damaged\n" );
+        LOG_ERROR( "Response not complete\n" );
 
     free( response );
 }

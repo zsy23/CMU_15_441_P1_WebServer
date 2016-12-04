@@ -14,8 +14,8 @@
 #include "client.h"
 #include "util.h"
 
-#define CLIENT_MAX_NUM ( FD_SETSIZE - 24 )
-#define TIMEOUT_SEC 23
+#define CLIENT_MAX_NUM ( FD_SETSIZE - 500 )
+#define TIMEOUT_SEC 230
 
 typedef struct
 {

@@ -24,9 +24,6 @@
 // max header length
 #define HDR_MAX_SIZE 8192
 
-// max request message body length
-#define MSG_MAX_SIZE 23000
-
 // max resource path length
 #define RESOURCE_SIZE 256
 
