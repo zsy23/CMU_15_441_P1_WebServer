@@ -16,12 +16,23 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <arpa/inet.h>
 
+// arguments max size
 #define ARG_MAX_SIZE 256
+
+// whether daemonize
+#define DAEMONIZED TRUE
+
+// daemoize
+extern int daemonize( char *lock_file );
 
 // get arguments
 int get_args(int argc, char *argv[], int *http, int *https, char *log, char *lock, char *www, char *cgi, char *prikey, char *certificate);
+
+// shutdown http server and close all file descriptons
+void shutdown_server( int r );
 
 // get arguments
 int get_args(int argc, char *argv[], int *http, int *https, char *log, char *lock, char *www, char *cgi, char *prikey, char *certificate)
@@ -108,6 +119,19 @@ int get_args(int argc, char *argv[], int *http, int *https, char *log, char *loc
     return 0; 
 }
 
+// shutdown http server and clean all file descriptions
+void shutdown_server( int r )
+{
+    int i;
+
+    for( i = getdtablesize(); i >= 0; --i )
+        close( i );
+
+    LOG_INFO( "Shutdown the server\n" );
+
+    exit( r );
+}
+
 int main( int argc, char *argv[] )
 {
     int http_port, https_port;
@@ -128,6 +152,10 @@ int main( int argc, char *argv[] )
     if( ( r = get_args(argc, argv, &http_port, &https_port, log_file, lock_file, www_folder, cgi_path, prikey_file, certificate_file) ) == -1 )    
         return -1;
     
+    // init daemonize
+    if( DAEMONIZED == TRUE )
+        daemonize( lock_file );
+
     // init logging module
     log_init( LOG_LEVEL_DEBUG, log_file );    
 
