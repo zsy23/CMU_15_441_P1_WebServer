@@ -17,15 +17,9 @@
 #define CLIENT_MAX_NUM ( FD_SETSIZE - 500 )
 #define TIMEOUT_SEC 230
 
-typedef struct
-{
-    int sockfd;
-    struct sockaddr_in addr;
-} sock_info;
-
 define_list( sock_info )
 
 // blocking listening with timeout and return client info
-void listening(int ser_sock, client_info **cients, int *maxi, int *maxfd, fd_set *allset, struct timeval *timeout, list( sock_info ) *unacc_head);
+void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info **cients, int *maxi, int *maxfd, fd_set *allset, struct timeval *timeout, list( sock_info ) *unacc_head);
 
 #endif

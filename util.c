@@ -8,6 +8,7 @@
 *******************************************************************************/
 
 #include "util.h"
+#include "log.h"
 
 // remove string's head and tail space
 void strip( char *str, size_t len )
@@ -60,4 +61,30 @@ bool is_uint( char *str, size_t len )
         return TRUE;
     else
         return FALSE;
+}
+
+// generic socket recv function
+int generic_recv( const sock_info *sock, void *buf, size_t len, int flags )
+{
+    if( sock->type == SOCK_HTTP )
+        return _recv( sock->fd, buf, len, flags );
+    else if( sock->type == SOCK_HTTPS )
+        return ssl_read( sock->context, buf, len );
+    else
+        LOG_ERROR( "Unknown recv socket type.\n" );
+
+    return -1;
+}
+
+// generic socket send function
+int generic_send( const sock_info *sock, const void *buf, size_t len, int flags )
+{
+    if( sock->type == SOCK_HTTP )
+        return _send( sock->fd, buf, len, flags );
+    else if( sock->type == SOCK_HTTPS )
+        return ssl_write( sock->context, buf, len );
+    else
+        LOG_ERROR( "Unknown send socket type.\n" );
+
+    return -1;
 }

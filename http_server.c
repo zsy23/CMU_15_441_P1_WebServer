@@ -10,6 +10,7 @@
 #include "client.h"
 #include "log.h"
 #include "util.h"
+#include "ssl.h"
 #include "socket.h"
 #include "core.h"
 #include "http.h"
@@ -23,7 +24,7 @@
 #define ARG_MAX_SIZE 256
 
 // whether daemonize
-#define DAEMONIZED TRUE
+#define DAEMONIZED FALSE
 
 // daemoize
 extern int daemonize( char *lock_file );
@@ -137,15 +138,16 @@ int main( int argc, char *argv[] )
     int http_port, https_port;
     char log_file[ARG_MAX_SIZE], lock_file[ARG_MAX_SIZE], www_folder[ARG_MAX_SIZE], cgi_path[ARG_MAX_SIZE];
     char prikey_file[ARG_MAX_SIZE], certificate_file[ARG_MAX_SIZE];
-    int sock;
+    int http_sock, https_sock;
     int maxi, maxfd;
     fd_set allset;
     struct timeval timeout;
     client_info *clients[CLIENT_MAX_NUM];
-    struct sockaddr_in addr;
+    struct sockaddr_in http_addr, https_addr;
     list( sock_info ) unacc_head, *unacc_sock, *unacc_tmp;
     time_t now;
     char date[DATE_SIZE];
+    SSL_CTX *ssl_context;
     int i, r;
 
     // get eight arguments from input
@@ -162,28 +164,46 @@ int main( int argc, char *argv[] )
     // set www folder
     set_www( www_folder );
 
-    // create server socket
-    if( ( sock = _socket( PF_INET, SOCK_STREAM, 0 ) ) == -1 )
+    // setup http socket
+    if( ( http_sock = _socket( PF_INET, SOCK_STREAM, 0 ) ) == -1 )
         return -1;
 
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons( http_port );
-    addr.sin_addr.s_addr = INADDR_ANY;
+    http_addr.sin_family = AF_INET;
+    http_addr.sin_port = htons( http_port );
+    http_addr.sin_addr.s_addr = INADDR_ANY;
 
-    // bind server socket
-   if( ( r = _bind( sock, ( struct sockaddr * ) &addr, sizeof( addr ) ) ) == -1 )
+   if( ( r = _bind( http_sock, ( struct sockaddr * ) &http_addr, sizeof( http_addr ) ) ) == -1 )
         return -1;     
 
-   // listen server socket
-    if( ( r = _listen( sock, FD_SETSIZE ) ) == -1 )
+    if( ( r = _listen( http_sock, FD_SETSIZE ) ) == -1 )
         return -1; 
+
+    // init ssl
+    ssl_context = NULL;
+    if( ssl_init( ssl_context, prikey_file, certificate_file ) < 0 )
+        return -1;
+
+    // setup https socket
+    if( ( https_sock = _socket( PF_INET, SOCK_STREAM, 0 ) ) == -1 )
+        return -1;
+
+    https_addr.sin_family = AF_INET;
+    https_addr.sin_port = htons( https_port );
+    https_addr.sin_addr.s_addr = INADDR_ANY;
+
+    if( ( r = _bind( https_sock, ( struct sockaddr * ) &https_addr, sizeof( https_addr ) ) ) == -1 )
+        return -1;
+
+    if( ( r = _listen( https_sock, FD_SETSIZE ) ) == -1 )
+        return -1;
 
     // init  select concerned data structure
     for ( i = 0; i < CLIENT_MAX_NUM; ++i ) clients[i] = NULL;
     maxi = -1;
-    maxfd = sock;
+    maxfd = MAX( http_sock, https_sock );
     FD_ZERO( &allset );
-    FD_SET( sock, &allset );
+    FD_SET( http_sock, &allset );
+    FD_SET( https_sock, &allset );
     timeout.tv_sec = TIMEOUT_SEC;
     timeout.tv_usec = 0;
 
@@ -193,7 +213,7 @@ int main( int argc, char *argv[] )
         unacc_head.next =  NULL;
 
         // block to wait for inboound io
-        listening(sock, clients, &maxi, &maxfd, &allset, &timeout, &unacc_head); 
+        listening(http_sock, https_sock, ssl_context, clients, &maxi, &maxfd, &allset, &timeout, &unacc_head); 
 
         // process unable to served clients
         unacc_sock = unacc_head.next;
@@ -203,9 +223,9 @@ int main( int argc, char *argv[] )
             time( &now );
             date_format( date, DATE_SIZE, &now );
 
-            respond( unacc_sock->data.addr, unacc_sock->data.sockfd, "HTTP/1.1", STATUS_503, CONN_CLOSE, date, "Liso/1.0", NULL );
+            respond( &unacc_sock->data, "HTTP/1.1", STATUS_503, CONN_CLOSE, date, "Liso/1.0", NULL );
 
-            _close( unacc_sock->data.sockfd );
+            _close( unacc_sock->data.fd );
             LOG_ERROR( "Unable to accept anymore connection\n" );
             unacc_tmp = unacc_sock;
             unacc_sock = unacc_sock->next;
@@ -219,14 +239,14 @@ int main( int argc, char *argv[] )
             if( clients[i] != NULL && clients[i]->ready == TRUE )
             {
                 LOG_INFO( "Request From %s:%u( %ld ):\n%s\n",
-                          inet_ntoa( clients[i]->addr.sin_addr ), ntohs( clients[i]->addr.sin_port ), 
+                          inet_ntoa( clients[i]->sock.addr.sin_addr ), ntohs( clients[i]->sock.addr.sin_port ), 
                           clients[i]->len, clients[i]->buf );
 
                 // parse HTTP/1.1 request
                 parse( clients[i] );  
 
                 LOG_DEBUG( "Client(%s:%u) meth: %d, uri: %s, version: %s, conn: %d, contype: %s, conlen: %d, done: %d, state: %d, hdr_len: %d, token:%s\nleft: %d msg: %s\n", 
-                        inet_ntoa( clients[i]->addr.sin_addr ), ntohs( clients[i]->addr.sin_port ), 
+                        inet_ntoa( clients[i]->sock.addr.sin_addr ), ntohs( clients[i]->sock.addr.sin_port ), 
                         clients[i]->meth, clients[i]->uri, clients[i]->version, clients[i]->conn,
                         clients[i]->contype, clients[i]->conlen, clients[i]->done, clients[i]->state,
                         clients[i]->hdr_len, clients[i]->token, clients[i]->left, clients[i]->msg );
@@ -239,9 +259,9 @@ int main( int argc, char *argv[] )
                     // persistent connection
                     if( clients[i]->conn == CONN_CLOSE )
                     {
-                        LOG_INFO( "Connection to %s:%u closed normally\n", inet_ntoa( clients[i]->addr.sin_addr ), ntohs( clients[i]->addr.sin_port ) );
-                        _close( clients[i]->sockfd );
-                        FD_CLR( clients[i]->sockfd, &allset );
+                        LOG_INFO( "Connection to %s:%u closed normally\n", inet_ntoa( clients[i]->sock.addr.sin_addr ), ntohs( clients[i]->sock.addr.sin_port ) );
+                        _close( clients[i]->sock.fd );
+                        FD_CLR( clients[i]->sock.fd, &allset );
                         free( clients[i] );
                         clients[i] = NULL;
                     }
@@ -272,8 +292,11 @@ int main( int argc, char *argv[] )
         }
     }
 
-    // close server socket
-    _close( sock );
+    // close server HTTP socket
+    _close( http_sock );
+
+    // close server HTTPS socket
+    ssl_close( ssl_context, https_sock, NULL );
 
     // close logging module
     log_close();

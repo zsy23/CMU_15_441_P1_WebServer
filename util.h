@@ -10,8 +10,12 @@
 #ifndef _UTIL_H_
 #define _UTIL_H_
 
+#include "socket.h"
+#include "ssl.h"
+
 #include <string.h>
 #include <time.h>
+#include <netinet/in.h>
 
 #define FALSE 0
 #define TRUE  1
@@ -38,6 +42,23 @@ typedef unsigned char bool;
 #define list( type ) \
     list_##type
 
+// socket type
+typedef enum
+{
+    SOCK_NONE,    // 0
+    SOCK_HTTP,    // 1
+    SOCK_HTTPS,   // 2
+    SOCK_UNKNOWN, // 3 
+} sock_type;
+
+typedef struct
+{
+    sock_type type;
+    struct sockaddr_in addr;
+    int fd;
+    SSL *context;
+} sock_info;
+
 // remove string's head and tail space
 void strip( char *str, size_t len );
 
@@ -52,5 +73,11 @@ void date_format( char *date, size_t len, time_t *t );
 
 // check if string is uint
 bool is_uint( char *str, size_t len );
+
+// generic socket recv function
+int generic_recv( const sock_info *sock, void *buf, size_t len, int flags );
+
+// generic socket send function
+int generic_send( const sock_info *sock, const void *buf, size_t len, int flags );
 
 #endif

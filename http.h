@@ -11,6 +11,7 @@
 #define _HTTP_H_
 
 #include "client.h"
+#include "util.h"
 
 // path separate concerned with OS
 #define SEPARATE '/'
@@ -67,7 +68,7 @@ void parse( client_info *client );
 void process( client_info *client );
 
 // respond request
-void respond( const struct sockaddr_in addr, const int sockfd, const char *version, const int status, const connection conn, const char *date, const char *server, const msg_info *mi );
+void respond( const sock_info *sock, const char *version, const int status, const connection conn, const char *date, const char *server, const msg_info *mi );
 
 // head method
 int do_head( const char *uri, msg_info *mi );

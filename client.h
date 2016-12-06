@@ -13,6 +13,7 @@
 #include "util.h"
 
 #include <netinet/in.h>
+#include <openssl/ssl.h>
 
 #define BUF_SIZE 4096
 #define URI_SIZE 256
@@ -72,8 +73,7 @@ typedef enum
 typedef struct
 {
     // socket
-    struct sockaddr_in addr;
-    int sockfd; 
+    sock_info sock;
 
     // buffer
     char buf[BUF_SIZE]; 

@@ -12,7 +12,6 @@
 #include "http.h"
 #include "util.h"
 #include "log.h"
-#include "socket.h"
 
 #include <stdlib.h>
 #include <time.h>
@@ -561,28 +560,28 @@ void process( client_info *client )
         case STATE_MET_NOT_IMP:
             status = STATUS_501;
             do_get( status_htmls[STATUS_501], &mi );
-            respond( client->addr, client->sockfd, version, status, CONN_KEEP_ALIVE, date, server, &mi );
+            respond( &client->sock, version, status, CONN_KEEP_ALIVE, date, server, &mi );
 
             break;
         // HTTP Version Not Supported
         case STATE_VER_NOT_SUP:
             status = STATUS_505;
             do_get( status_htmls[STATUS_505], &mi );
-            respond( client->addr, client->sockfd, version, status, CONN_KEEP_ALIVE, date, server, &mi );
+            respond( &client->sock, version, status, CONN_KEEP_ALIVE, date, server, &mi );
 
             break;
         // Length Required
         case STATE_LEN_REQUIRED:
             status = STATUS_411;
             do_get( status_htmls[STATUS_411], &mi );
-            respond( client->addr, client->sockfd, version, status, CONN_KEEP_ALIVE, date, server, &mi );
+            respond( &client->sock, version, status, CONN_KEEP_ALIVE, date, server, &mi );
 
             break;
         // Bad Request
         case STATE_BAD:
             status = STATUS_400;
             do_get( status_htmls[STATUS_400], &mi );
-            respond( client->addr, client->sockfd, version, status, CONN_KEEP_ALIVE, date, server, &mi );
+            respond( &client->sock, version, status, CONN_KEEP_ALIVE, date, server, &mi );
 
             break;
         // Normal Request
@@ -594,7 +593,7 @@ void process( client_info *client )
                     status = do_head( client->uri, &mi );
                     if( status != STATUS_200 )
                         do_get( status_htmls[status], &mi );
-                    respond( client->addr, client->sockfd, client->version, status, client->conn, date, server, &mi );
+                    respond( &client->sock, client->version, status, client->conn, date, server, &mi );
 
                     break;
                 // GET Method
@@ -602,7 +601,7 @@ void process( client_info *client )
                     status = do_get( client->uri, &mi );
                     if( status != STATUS_200 )
                         do_get( status_htmls[status], &mi );
-                    respond( client->addr, client->sockfd, client->version, status, client->conn, date, server, &mi );
+                    respond( &client->sock, client->version, status, client->conn, date, server, &mi );
 
                     break;
                 // POST Method
@@ -610,7 +609,7 @@ void process( client_info *client )
                     status = do_post( client->uri, client->msg, &mi );
                     if( status != STATUS_200 )
                         do_get( status_htmls[status], &mi );
-                    respond( client->addr, client->sockfd, client->version, status, client->conn, date, server, NULL );
+                    respond( &client->sock, client->version, status, client->conn, date, server, NULL );
 
                     break;
                 default:
@@ -628,7 +627,7 @@ void process( client_info *client )
 }
 
 // respond according to header and message
-void respond( const struct sockaddr_in addr, const int sockfd, const char *version, const int status, const connection conn, const char *date, const char *server, const msg_info *mi )
+void respond( const sock_info *sock, const char *version, const int status, const connection conn, const char *date, const char *server, const msg_info *mi )
 {
     int size;
     char status_reason[STA_REA_MAX_SIZE], conn_s[CONN_MAX_SIZE], conlen_s[CONLEN_MAX_SIZE];
@@ -663,7 +662,7 @@ void respond( const struct sockaddr_in addr, const int sockfd, const char *versi
                   version, status_reason, date, conn_s, server );
     
         size = strlen( response );
-        if( _send( sockfd, response, size, 0 ) < size )
+        if( generic_send( sock, response, size, 0 ) < size )
             LOG_ERROR( "Response not complete\n" );
 
         free( response );
@@ -694,7 +693,7 @@ void respond( const struct sockaddr_in addr, const int sockfd, const char *versi
     }
 
     size = strlen( response );
-    LOG_INFO( "Response Header To %s:%u( %d ):\n%s\n", inet_ntoa( addr.sin_addr ), ntohs( addr.sin_port ), size, response );
+    LOG_INFO( "Response Header To %s:%u( %d ):\n%s\n", inet_ntoa( sock->addr.sin_addr ), ntohs( sock->addr.sin_port ), size, response );
 
     if( mi->len > 0 )
     {
@@ -702,11 +701,11 @@ void respond( const struct sockaddr_in addr, const int sockfd, const char *versi
         memcpy( response + size, mi->msg, mi->len );
         size += mi->len;
     
-        LOG_INFO( "Message Body To %s:%u( %d ):\n%s\n", inet_ntoa( addr.sin_addr ), ntohs( addr.sin_port ), mi->len, mi->msg );
+        LOG_INFO( "Message Body To %s:%u( %d ):\n%s\n", inet_ntoa( sock->addr.sin_addr ), ntohs( sock->addr.sin_port ), mi->len, mi->msg );
     }
 
     // send response to client
-    if( _send( sockfd, response, size, 0 ) < size )
+    if( generic_send( sock, response, size, 0 ) < size )
         LOG_ERROR( "Response not complete\n" );
 
     free( response );

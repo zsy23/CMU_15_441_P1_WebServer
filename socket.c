@@ -71,7 +71,7 @@ int _select( int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, str
     return nready;
 }
 
-// robust resc()
+// robust recv()
 ssize_t _recv( int sockfd, void *buf, size_t len, int flags)
 {
     ssize_t recv_len;

@@ -7,10 +7,14 @@
 #                                                                              #
 ################################################################################
 
+LDFLAGS=-L/usr/local/opt/openssl/lib
+CFLAGS=-I/usr/local/opt/openssl/include
+GCC=@gcc $(CFLAGS) $(LDFLAGS)
+
 default: http_server
 
 http_server:
-	@gcc util.c log.c socket.c core.c http.c daemonize.c http_server.c -o http_server -Wall -Werror
+	$(GCC) daemonize.c log.c socket.c ssl.c util.c core.c http.c http_server.c -o http_server -Wall -Werror -lssl
 
 clean:
 	@rm http_server
