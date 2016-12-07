@@ -14,7 +14,7 @@ GCC=@gcc $(CFLAGS) $(LDFLAGS)
 default: http_server
 
 http_server:
-	$(GCC) daemonize.c log.c socket.c ssl.c util.c core.c http.c http_server.c -o http_server -Wall -Werror -lssl
+	$(GCC) daemonize.c log.c socket.c ssl.c util.c core.c http.c http_server.c -o http_server -Wall -Werror -lssl -lcrypto
 
 clean:
 	@rm http_server

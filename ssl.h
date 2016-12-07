@@ -10,10 +10,10 @@
 #include <openssl/ssl.h>
 
 // init ssl
-int ssl_init( SSL_CTX *ssl_context, char *prikey, char *crt );
+int ssl_init( SSL_CTX **ssl_context, const char *prikey, const char *crt );
 
 // wrap socket with ssl
-int ssl_wrap_socket( SSL_CTX *ssl_context, int sockfd, SSL *sock_context );
+int ssl_wrap_socket( SSL_CTX *ssl_context, int sockfd, SSL **sock_context );
 
 // close ssl
 void ssl_close( SSL_CTX *ssl_context, int sockfd, SSL *sock_context ); 

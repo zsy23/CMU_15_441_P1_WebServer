@@ -180,7 +180,7 @@ int main( int argc, char *argv[] )
 
     // init ssl
     ssl_context = NULL;
-    if( ssl_init( ssl_context, prikey_file, certificate_file ) < 0 )
+    if( ssl_init( &ssl_context, prikey_file, certificate_file ) < 0 )
         return -1;
 
     // setup https socket

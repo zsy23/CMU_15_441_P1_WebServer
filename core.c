@@ -138,7 +138,7 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
                         clients[i]->sock.type = SOCK_HTTPS;
                         clients[i]->sock.addr = cli_addr;
                         clients[i]->sock.fd = cli_sock;
-                        if( ssl_wrap_socket( ssl_context, cli_sock, clients[i]->sock.context ) < 0 )
+                        if( ssl_wrap_socket( ssl_context, cli_sock, &clients[i]->sock.context ) < 0 )
                         {
                             clients[i]->sock.context = NULL;
                             break;

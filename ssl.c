@@ -11,32 +11,46 @@
 #include "log.h"
 #include "socket.h"
 
+#include <openssl/err.h>
+
 // init ssl
-int ssl_init( SSL_CTX *ssl_context, char *prikey, char *crt )
+int ssl_init( SSL_CTX **ssl_context, const char *prikey, const char *crt )
 {
+    unsigned long e;
+    char err_msg[1024] = { 0 }; 
+    char *tmp = NULL;
+
     SSL_load_error_strings();
     SSL_library_init();
 
     // use TLSv1 only
-    if( ( ssl_context = SSL_CTX_new( TLSv1_server_method() ) ) == NULL )
+    if( ( *ssl_context = SSL_CTX_new( TLSv1_server_method() ) ) == NULL )
     {
-        LOG_ERROR( "Error creating SSL context.\n" );
+        e = ERR_get_error();
+        tmp = ERR_error_string( e, err_msg );
+        LOG_ERROR( "Error creating SSL context: %s\n", err_msg );
         return -1;
     }
 
     // register private key
-    if( SSL_CTX_use_PrivateKey_file( ssl_context, prikey, SSL_FILETYPE_PEM ) == 0 )
+    if( SSL_CTX_use_PrivateKey_file( *ssl_context, prikey, SSL_FILETYPE_PEM ) == 0 )
     {
-        SSL_CTX_free( ssl_context );
-        LOG_ERROR( "Error associating private key.\n" );
+        SSL_CTX_free( *ssl_context );
+
+        e = ERR_get_error();
+        tmp = ERR_error_string( e, err_msg );
+        LOG_ERROR( "Error associating private key: %s\n", err_msg );
         return -1;
     }
 
     // registry public key( certificate )
-    if( SSL_CTX_use_certificate_file( ssl_context, crt, SSL_FILETYPE_PEM ) == 0 )
+    if( SSL_CTX_use_certificate_file( *ssl_context, crt, SSL_FILETYPE_PEM ) == 0 )
     {
-        SSL_CTX_free( ssl_context );
-        LOG_ERROR( "Error associating certificate.\n" );
+        SSL_CTX_free( *ssl_context );
+
+        e = ERR_get_error();
+        tmp = ERR_error_string( e, err_msg );
+        LOG_ERROR( "Error associating certificate: %s\n", err_msg );
         return -1;
     }
 
@@ -44,28 +58,41 @@ int ssl_init( SSL_CTX *ssl_context, char *prikey, char *crt )
 }
 
 // wrap socket with ssl
-int ssl_wrap_socket( SSL_CTX *ssl_context, int sockfd, SSL *sock_context )
+int ssl_wrap_socket( SSL_CTX *ssl_context, int sockfd, SSL **sock_context )
 {
-    if( ( sock_context = SSL_new( ssl_context ) ) == NULL )
+    unsigned long e;
+    char err_msg[1024] = { 0 }; 
+    char *tmp = NULL;
+
+    if( ( *sock_context = SSL_new( ssl_context ) ) == NULL )
     {
         _close( sockfd );
-        LOG_ERROR( "Error creating client SSL context.\n" );
+
+        e = ERR_get_error();
+        tmp = ERR_error_string( e, err_msg );
+        LOG_ERROR( "Error creating client SSL context: %s\n", err_msg );
         return -1;
     }
 
-    if( SSL_set_fd( sock_context, sockfd ) == 0 )
+    if( SSL_set_fd( *sock_context, sockfd ) == 0 )
     {
         _close( sockfd );
-        SSL_free( sock_context );
-        LOG_ERROR( "Error creating client SSL context.\n" );
+        SSL_free( *sock_context );
+
+        e = ERR_get_error();
+        tmp = ERR_error_string( e, err_msg );
+        LOG_ERROR( "Error creating client SSL context: %s\n", err_msg );
         return -1;
     }  
 
-    if( SSL_accept( sock_context ) <= 0 )
+    if( SSL_accept( *sock_context ) <= 0 )
     {
         _close( sockfd );
-        SSL_free( sock_context );
-        LOG_ERROR( "Error accepting (handshake) client SSL context.\n" );
+        SSL_free( *sock_context );
+
+        e = ERR_get_error();
+        tmp = ERR_error_string( e, err_msg );
+        LOG_ERROR( "Error accepting (handshake) client SSL context: %s\n", err_msg );
         return -1;
     }
 
@@ -83,19 +110,26 @@ void ssl_close( SSL_CTX *ssl_context, int sockfd, SSL *sock_context )
     if( sockfd >= 0 )
         _close(sockfd);
     if( ssl_context != NULL )
-        SSL_CTX_free(ssl_context);
+        SSL_CTX_free( ssl_context );
 }
 
 // ssl robust read
 int ssl_read( SSL *ssl, void *buf, int len )
 {
     int ret;
+    unsigned long e;
+    char err_msg[1024] = { 0 }; 
+    char *tmp = NULL;
 
     ret = 0;
     ret = SSL_read( ssl, buf, len );
 
     if( ret < 0 )
-        LOG_ERROR( "Error reading from sockets.\n" );
+    {
+        e = ERR_get_error();
+        tmp = ERR_error_string( e, err_msg );
+        LOG_ERROR( "Error reading from sockets: %s\n", err_msg );
+    }
 
     return ret;
 }
@@ -104,12 +138,19 @@ int ssl_read( SSL *ssl, void *buf, int len )
 int ssl_write( SSL *ssl, const void *buf, int len )
 {
     int ret;
+    unsigned long e;
+    char err_msg[1024] = { 0 }; 
+    char *tmp = NULL;
 
     ret = 0;
     ret = SSL_write( ssl, buf, len );
 
     if( ret < 0 )
-        LOG_ERROR( "Error writing to socket.\n" );
+    {
+        e = ERR_get_error();
+        tmp = ERR_error_string( e, err_msg );
+        LOG_ERROR( "Error writing to socket: %s\n", err_msg );
+    }
 
     return ret;
 }
