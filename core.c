@@ -8,10 +8,8 @@
 *                                                                             *
 *******************************************************************************/
 
-#include "log.h"
-#include "socket.h"
-#include "ssl.h"
 #include "core.h"
+#include "log.h"
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -211,6 +209,8 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
                         // remote client close the connection and update data concerned
                         LOG_INFO( "Connection to %s:%u closed normally\n", inet_ntoa( clients[i]->sock.addr.sin_addr ), ntohs( clients[i]->sock.addr.sin_port ) );
                         _close( clients[i]->sock.fd );
+                        if( clients[i]->sock.context != NULL )
+                            ssl_close( NULL, -1, clients[i]->sock.context );
                         FD_CLR( clients[i]->sock.fd, allset );
                         free( clients[i] );
                         clients[i] = NULL;
@@ -228,6 +228,8 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
             {
                 LOG_INFO( "Connection to %s:%u closed due to timeout\n", inet_ntoa( clients[i]->sock.addr.sin_addr ), ntohs( clients[i]->sock.addr.sin_port ) );
                 _close( clients[i]->sock.fd );
+                if( clients[i]->sock.context != NULL )
+                    ssl_close( NULL, -1, clients[i]->sock.context );
                 FD_CLR( clients[i]->sock.fd, allset );
                 free( clients[i] );
                 clients[i] = NULL;

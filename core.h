@@ -14,7 +14,7 @@
 #include "client.h"
 #include "util.h"
 
-#define CLIENT_MAX_NUM ( FD_SETSIZE - 500 )
+#define CLIENT_MAX_NUM ( FD_SETSIZE - 24 )
 #define TIMEOUT_SEC 230
 
 define_list( sock_info )

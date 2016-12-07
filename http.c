@@ -10,7 +10,6 @@
 *******************************************************************************/
 
 #include "http.h"
-#include "util.h"
 #include "log.h"
 
 #include <stdlib.h>

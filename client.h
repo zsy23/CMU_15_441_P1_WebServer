@@ -12,9 +12,6 @@
 
 #include "util.h"
 
-#include <netinet/in.h>
-#include <openssl/ssl.h>
-
 #define BUF_SIZE 4096
 #define URI_SIZE 256
 #define VERSION_SIZE 16
