@@ -2,8 +2,6 @@
 * http.c                                                                      *
 *                                                                             *
 * Description: This file contains the C source code for processing HTTP/1.1.  *
-*              TODO: Decode URI                                               *
-*              TODO: POST                                                     *
 *                                                                             *
 * Author: Shiyu Zhang <1181856726@qq.com>                                     *
 *                                                                             *
@@ -59,25 +57,78 @@ void set_www( const char *folder )
     snprintf( www, WWW_SIZE, "%s", folder );
 }
 
-// check Content-Type
-bool check_contype( const char *str, size_t len )
+// fill header
+void fill_header( client_info *client, const char *field, const char *value )
 {
-    int i;
+    int fie_size, val_size;
 
-    for( i = 0; contype_strings[i] != NULL; ++i )
-        if( strncmp( str, contype_strings[i], MAX( len, strlen( contype_strings[i] ) ) ) == 0 )
-            return TRUE;
+    fie_size = strlen( field );
+    val_size = strlen( value ) + 1;
 
-    return FALSE;
+    if( strncmp( field, "connection", MAX( fie_size, 10 ) ) == 0 )
+    {
+        client->header[HDR_CONNECTION] = ( char * )malloc( val_size );
+        snprintf( client->header[HDR_CONNECTION], val_size, "%s", value );
+    }
+    else if( strncmp( field, "content-length", MAX( fie_size, 14 ) ) == 0 )
+    {
+        client->header[HDR_CONTENT_LENGTH] = ( char * )malloc( val_size );
+        snprintf( client->header[HDR_CONTENT_LENGTH], val_size, "%s", value );
+    }
+    else if( strncmp( field, "content-type", MAX( fie_size, 12 ) ) == 0 )
+    {
+        client->header[HDR_CONTENT_TYPE] = ( char * )malloc( val_size );
+        snprintf( client->header[HDR_CONTENT_TYPE], val_size, "%s", value );
+    }
+    else if( strncmp( field, "accept", MAX( fie_size, 6 ) ) == 0 )
+    {
+        client->header[HDR_ACCEPT] = ( char * )malloc( val_size );
+        snprintf( client->header[HDR_ACCEPT], val_size, "%s", value );
+    }
+    else if( strncmp( field, "referer", MAX( fie_size, 7 ) ) == 0 )
+    {
+        client->header[HDR_REFERER] = ( char * )malloc( val_size );
+        snprintf( client->header[HDR_REFERER], val_size, "%s", value );
+    }
+    else if( strncmp( field, "accept-encoding", MAX( fie_size, 15 ) ) == 0 )
+    {
+        client->header[HDR_ACCEPT_ENCODING] = ( char * )malloc( val_size );
+        snprintf( client->header[HDR_ACCEPT_ENCODING], val_size, "%s", value );
+    }
+    else if( strncmp( field, "accept-language", MAX( fie_size, 15 ) ) == 0 )
+    {
+        client->header[HDR_ACCEPT_LANGUAGE] = ( char * )malloc( val_size );
+        snprintf( client->header[HDR_ACCEPT_LANGUAGE], val_size, "%s", value );
+    }
+    else if( strncmp( field, "accept-charset", MAX( fie_size, 14 ) ) == 0 )
+    {
+        client->header[HDR_ACCEPT_CHARSET] = ( char * )malloc( val_size );
+        snprintf( client->header[HDR_ACCEPT_CHARSET], val_size, "%s", value );
+    }
+    else if( strncmp( field, "cookie", MAX( fie_size, 6 ) ) == 0 )
+    {
+        client->header[HDR_COOKIE] = ( char * )malloc( val_size );
+        snprintf( client->header[HDR_COOKIE], val_size, "%s", value );
+    }
+    else if( strncmp( field, "user-agent", MAX( fie_size, 10 ) ) == 0 )
+    {
+        client->header[HDR_USER_AGENT] = ( char * )malloc( val_size );
+        snprintf( client->header[HDR_USER_AGENT], val_size, "%s", value );
+    }
+    else if( strncmp( field, "host", MAX( fie_size, 4 ) ) == 0 )
+    {
+        client->header[HDR_HOST] = ( char * )malloc( val_size );
+        snprintf( client->header[HDR_HOST], val_size, "%s", value );
+    }
 }
 
 // parse HTTP/1.1 request
 void parse( client_info *client )
 {
     int i;
-    char c, field[TOKEN_SIZE], value[TOKEN_SIZE];
-    CLR_BUF( field        , TOKEN_SIZE );
-    CLR_BUF( value        , TOKEN_SIZE );        
+    char c;
+    char field[TOKEN_SIZE] = { 0 };
+    char value[TOKEN_SIZE] = { 0 };
 
     i = 0;
     // state machine
@@ -260,7 +311,7 @@ void parse( client_info *client )
                         client->state = STATE_HDR_STA;
                         break;
                     case CR:
-                        if( client->meth == METHOD_POST && client->conlen < 0 ) 
+                        if( client->meth == METHOD_POST && ( client->header[HDR_CONTENT_LENGTH] == NULL || is_uint( client->header[HDR_CONTENT_LENGTH], strlen( client->header[HDR_CONTENT_LENGTH] ) ) == FALSE ) ) 
                             client->state = STATE_LEN_REQUIRED;
                         else
                             client->state = STATE_SEC_CR;
@@ -281,16 +332,16 @@ void parse( client_info *client )
                 {
                     case LF:
                         client->state = STATE_SEC_LF;
-                        if( client->conlen <= 0 )
+                        if( client->header[HDR_CONTENT_LENGTH] == NULL || is_uint( client->header[HDR_CONTENT_LENGTH], strlen( client->header[HDR_CONTENT_LENGTH] ) ) == FALSE )
                             client->state = STATE_END;
-                        else if( client->conlen > MSG_SIZE )
+                        else if( atoi( client->header[HDR_CONTENT_LENGTH] ) > MSG_SIZE )
                         {
                             client->state = STATE_BAD;
                             LOG_DEBUG( "Bad Request: sec cr msg too long\n" );
                         }
                         else
                         {
-                            client->left = client->conlen;
+                            client->left = atoi( client->header[HDR_CONTENT_LENGTH] );
                             client->state = STATE_MSG;
                         }
                         break;
@@ -440,41 +491,10 @@ void parse( client_info *client )
                         client->state = STATE_FIR_CR;
 
                         strip( client->token, strlen( client->token ) );
-                        to_lower( client->token, strlen( client->token ) );
                         snprintf( value, TOKEN_SIZE, "%s", client->token );
 
-                        if( strncmp( field, "connection", MAX( strlen( field ), 10 ) ) == 0 )
-                        {
-                            if( strncmp( value, "keep-alive", MAX( strlen( value ), 10 ) ) == 0 )
-                                client->conn = CONN_KEEP_ALIVE;
-                            else if( strncmp( value, "close", MAX( strlen( value ), 5 ) ) == 0 )
-                                client->conn = CONN_CLOSE;
-                            else
-                            {
-                                client->state = STATE_BAD;
-                                LOG_DEBUG( "Bad Request: hdr conn unknown\n" );
-                            }
-                        }
-                        else if( strncmp( field, "content-length", MAX( strlen( field ), 14 ) ) == 0 )
-                        {
-                            if( is_uint( value, strlen( value ) ) == TRUE )
-                                client->conlen = atoi( value );
-                            else
-                            {
-                                client->state = STATE_BAD;
-                                LOG_DEBUG( "Bad Request: hdr conlen no uint\n" );
-                            }
-                        }
-                        else if( strncmp( field, "content-type", MAX( strlen( field ), 12 ) ) == 0 )
-                        {
-                            if( check_contype( value, strlen( value ) ) == TRUE ) 
-                                snprintf( client->contype, CONTYPE_SIZE, "%s", value );
-                            else
-                            {
-                                client->state = STATE_BAD;
-                                LOG_DEBUG( "Bad Request: hdr contype not sup\n" );
-                            }
-                        }
+                        fill_header( client, field, value );
+
                         memset( field, 0, TOKEN_SIZE );
                         memset( value, 0, TOKEN_SIZE );
 
@@ -534,122 +554,128 @@ void parse( client_info *client )
 // process request and respond
 void process( client_info *client )
 {
-    int status;
-    time_t now;
-    char date[DATE_SIZE];
-    msg_info mi;
-    char version[] = "HTTP/1.1";
-    char server[] = "Liso/1.0";
-
-    status = -1;
-    CLR_BUF( date, DATE_SIZE );
-    mi.conlen = -1;
-    CLR_BUF( mi.contype, CONTYPE_SIZE );
-    CLR_BUF( mi.last_modi, DATE_SIZE );
-    mi.len = -1;
-
-    // Date field
-    time( &now );
-    date_format( date, DATE_SIZE, &now );
-
-    // according to state
-    switch( client->state )
+    if( strlen( client->uri ) >= 5 && strncmp( client->uri, "/cgi/", 5 ) == 0 )
     {
-        // Not implemented
-        case STATE_MET_NOT_IMP:
-            status = STATUS_501;
-            do_get( status_htmls[STATUS_501], &mi );
-            respond( &client->sock, version, status, CONN_KEEP_ALIVE, date, server, &mi );
-
-            break;
-        // HTTP Version Not Supported
-        case STATE_VER_NOT_SUP:
-            status = STATUS_505;
-            do_get( status_htmls[STATUS_505], &mi );
-            respond( &client->sock, version, status, CONN_KEEP_ALIVE, date, server, &mi );
-
-            break;
-        // Length Required
-        case STATE_LEN_REQUIRED:
-            status = STATUS_411;
-            do_get( status_htmls[STATUS_411], &mi );
-            respond( &client->sock, version, status, CONN_KEEP_ALIVE, date, server, &mi );
-
-            break;
-        // Bad Request
-        case STATE_BAD:
-            status = STATUS_400;
-            do_get( status_htmls[STATUS_400], &mi );
-            respond( &client->sock, version, status, CONN_KEEP_ALIVE, date, server, &mi );
-
-            break;
-        // Normal Request
-        case STATE_END:
-            switch( client->meth )
-            {
-                // HEAD Method
-                case METHOD_HEAD:
-                    status = do_head( client->uri, &mi );
-                    if( status != STATUS_200 )
-                        do_get( status_htmls[status], &mi );
-                    respond( &client->sock, client->version, status, client->conn, date, server, &mi );
-
-                    break;
-                // GET Method
-                case METHOD_GET:
-                    status = do_get( client->uri, &mi );
-                    if( status != STATUS_200 )
-                        do_get( status_htmls[status], &mi );
-                    respond( &client->sock, client->version, status, client->conn, date, server, &mi );
-
-                    break;
-                // POST Method
-                case METHOD_POST:
-                    status = do_post( client->uri, client->msg, &mi );
-                    if( status != STATUS_200 )
-                        do_get( status_htmls[status], &mi );
-                    respond( &client->sock, client->version, status, client->conn, date, server, NULL );
-
-                    break;
-                default:
-                    break;
-            }
-
-            break;
-        default:
-            LOG_ERROR( "Unknow parse result\n" );
-            break;
+        // TODO: CGI
     }
+    else
+    {
+        int status, size;
+        time_t now;
+        msg_info mi;
+        char date[DATE_SIZE] = { 0 };
+        char version[] = "HTTP/1.1";
+        char server[] = "Liso/1.0";
+        char conn[CONN_MAX_SIZE] = { 0 };
 
-    if( mi.len > 0 )
-        free( mi.msg );
+        status = -1;
+        mi.conlen = -1;
+        CLR_BUF( mi.contype, CONTYPE_SIZE );
+        CLR_BUF( mi.last_modi, DATE_SIZE );
+        mi.len = -1;
+
+        // Date field
+        time( &now );
+        date_format( date, DATE_SIZE, &now );
+
+        // Connection field
+        size = strlen( client->header[HDR_CONNECTION] );
+        if( strncmp( client->header[HDR_CONNECTION], "close", MAX( size, 5 ) ) == 0 )
+            snprintf( conn, CONN_MAX_SIZE, "close" );
+        else if( strncmp( client->header[HDR_CONNECTION], "keep-alive", MAX( size, 10 ) ) == 0 )
+            snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
+        else
+            snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
+
+        // according to state
+        switch( client->state )
+        {
+            // Not implemented
+            case STATE_MET_NOT_IMP:
+                status = STATUS_501;
+                do_get( status_htmls[STATUS_501], &mi );
+                respond( &client->sock, version, status, conn, date, server, &mi );
+
+                break;
+            // HTTP Version Not Supported
+            case STATE_VER_NOT_SUP:
+                status = STATUS_505;
+                do_get( status_htmls[STATUS_505], &mi );
+                respond( &client->sock, version, status, conn, date, server, &mi );
+
+                break;
+            // Length Required
+            case STATE_LEN_REQUIRED:
+                status = STATUS_411;
+                do_get( status_htmls[STATUS_411], &mi );
+                respond( &client->sock, version, status, conn, date, server, &mi );
+
+                break;
+            // Bad Request
+            case STATE_BAD:
+                status = STATUS_400;
+                do_get( status_htmls[STATUS_400], &mi );
+                respond( &client->sock, version, status, conn, date, server, &mi );
+
+                break;
+            // Normal Request
+            case STATE_END:
+                switch( client->meth )
+                {
+                    // HEAD Method
+                    case METHOD_HEAD:
+                        status = do_head( client->uri, &mi );
+                        if( status != STATUS_200 )
+                            do_get( status_htmls[status], &mi );
+                        respond( &client->sock, client->version, status, conn, date, server, &mi );
+
+                        break;
+                    // GET Method
+                    case METHOD_GET:
+                        status = do_get( client->uri, &mi );
+                        if( status != STATUS_200 )
+                            do_get( status_htmls[status], &mi );
+                        respond( &client->sock, client->version, status, conn, date, server, &mi );
+
+                        break;
+                    // POST Method
+                    case METHOD_POST:
+                        status = do_post( client->uri, client->msg, &mi );
+                        if( status != STATUS_200 )
+                            do_get( status_htmls[status], &mi );
+                        respond( &client->sock, client->version, status, conn, date, server, NULL );
+
+                        break;
+                    default:
+                        break;
+                }
+
+                break;
+            default:
+                LOG_ERROR( "Unknow parse result\n" );
+                break;
+        }
+
+        if( mi.len > 0 )
+            free( mi.msg );
+    }
 }
 
 // respond according to header and message
-void respond( const sock_info *sock, const char *version, const int status, const connection conn, const char *date, const char *server, const msg_info *mi )
+void respond( const sock_info *sock, const char *version, const int status, const char *conn, const char *date, const char *server, const msg_info *mi )
 {
     int size;
-    char status_reason[STA_REA_MAX_SIZE], conn_s[CONN_MAX_SIZE], conlen_s[CONLEN_MAX_SIZE];
     char *response;
+    char status_reason[STA_REA_MAX_SIZE] = { 0 };
+    char conlen_s[CONLEN_MAX_SIZE] = { 0 };
 
     size = -1;
     response = NULL;
-    CLR_BUF( status_reason, STA_REA_MAX_SIZE );
-    CLR_BUF( conn_s, CONN_MAX_SIZE );
-    CLR_BUF( conlen_s, CONLEN_MAX_SIZE );
 
     // status code and reason phrase
     snprintf( status_reason, STA_REA_MAX_SIZE, "%s", status_reason_strings[status] );
 
-    // Connection field
-    if( conn == CONN_KEEP_ALIVE )
-        snprintf( conn_s, CONN_MAX_SIZE, "keep-alive" );
-    else if( conn == CONN_CLOSE )
-        snprintf( conn_s, CONN_MAX_SIZE, "close" );
-    else
-        snprintf( conn_s, CONN_MAX_SIZE, "keep-alive" );
-
-    size = strlen( version ) + strlen( status_reason ) + strlen( conn_s ) +strlen( date ) + strlen( server );
+    size = strlen( version ) + strlen( status_reason ) + strlen( conn ) +strlen( date ) + strlen( server );
 
     // if mi is NULL
     if( mi == NULL )
@@ -658,7 +684,7 @@ void respond( const sock_info *sock, const char *version, const int status, cons
         response = ( char * )malloc( size + 64 );
 
         snprintf( response, size + 64, "%s %s\r\nDate: %s\r\nConnection: %s\r\nServer: %s\r\n\r\n",   
-                  version, status_reason, date, conn_s, server );
+                  version, status_reason, date, conn, server );
     
         size = strlen( response );
         if( generic_send( sock, response, size, 0 ) < size )
@@ -683,12 +709,12 @@ void respond( const sock_info *sock, const char *version, const int status, cons
     if( mi->conlen < 0 )
     {
         snprintf( response, size + 128, "%s %s\r\nDate: %s\r\nConnection: %s\r\nServer: %s\r\n\r\n",
-                  version, status_reason, date, conn_s, server );
+                  version, status_reason, date, conn, server );
     }
     else if( mi->conlen >= 0 )
     {
         snprintf( response, size + 128, "%s %s\r\nDate: %s\r\nConnection: %s\r\nServer: %s\r\nContent-Type: %s\r\nContent-Length: %s\r\nLast-Modified: %s\r\n\r\n",
-                  version, status_reason, date, conn_s, server, mi->contype, conlen_s, mi->last_modi );
+                  version, status_reason, date, conn, server, mi->contype, conlen_s, mi->last_modi );
     }
 
     size = strlen( response );
@@ -727,8 +753,7 @@ int do_get( const char *uri, msg_info *mi )
 // process POST method
 int do_post( const char *uri, const char *msg, msg_info *mi )
 {
-    // TODO
-    fprintf( stdout, "uri: %s\nmsg: %s\n", uri, msg );
+    // fprintf( stdout, "uri: %s\nmsg: %s\n", uri, msg );
 
     return STATUS_200;
 }
@@ -737,14 +762,13 @@ int do_post( const char *uri, const char *msg, msg_info *mi )
 int get_resource( const char *uri, msg_info *mi, bool msg_needed )
 {
     int pos;
-    char resource_path[RESOURCE_SIZE], suffix[SUFFIX_MAX_SIZE];
     struct stat buf;
     file_type ft;
+    char resource_path[RESOURCE_SIZE] = { 0 };
+    char suffix[SUFFIX_MAX_SIZE] = { 0 };
 
     pos = -1;
     ft = FT_UNKNOWN;
-    CLR_BUF( resource_path, RESOURCE_SIZE );
-    CLR_BUF( suffix, SUFFIX_MAX_SIZE );
 
     // build resource path and check
     if( strlen( www ) + strlen( uri ) > RESOURCE_SIZE - 1 )

@@ -42,6 +42,14 @@ typedef unsigned char bool;
 #define list( type ) \
     list_##type
 
+// file type
+typedef enum
+{
+    FT_BINARY,  // 0
+    FT_ASCII,   // 1
+    FT_UNKNOWN, // 2
+} file_type;
+
 // socket type
 typedef enum
 {

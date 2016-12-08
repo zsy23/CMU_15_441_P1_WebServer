@@ -22,7 +22,7 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
     struct sockaddr_in cli_addr;
     int cli_sock;
     socklen_t addrlen;
-    int i, nready;
+    int i, j, nready;
 
     rset = *allset;
 
@@ -40,6 +40,9 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
                 _close( clients[i]->sock.fd );
                 if( clients[i]->sock.context != NULL )
                     ssl_close( NULL, -1, clients[i]->sock.context );
+                for( j = 0; j < HDR_SIZE; ++j )
+                    if( clients[i]->header[j] != NULL )
+                        free( clients[i]->header[j] );
                 free( clients[i] );
                 clients[i] = NULL;
             }
@@ -79,9 +82,8 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
                         clients[i]->meth = METHOD_NONE;
                         CLR_BUF( clients[i]->uri, URI_SIZE );
                         CLR_BUF( clients[i]->version, VERSION_SIZE );
-                        clients[i]->conn = CONN_NONE;
-                        CLR_BUF( clients[i]->contype, CONTYPE_SIZE );
-                        clients[i]->conlen = -1;
+                        for( j = 0; j < HDR_SIZE; ++j )
+                            clients[i]->header[j] = NULL;
                         clients[i]->left = -1;
                         CLR_BUF( clients[i]->msg, MSG_SIZE );
                         clients[i]->state = STATE_START;
@@ -148,9 +150,8 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
                         clients[i]->meth = METHOD_NONE;
                         CLR_BUF( clients[i]->uri, URI_SIZE );
                         CLR_BUF( clients[i]->version, VERSION_SIZE );
-                        clients[i]->conn = CONN_NONE;
-                        CLR_BUF( clients[i]->contype, CONTYPE_SIZE );
-                        clients[i]->conlen = -1;
+                        for( j = 0; j < HDR_SIZE; ++j )
+                            clients[i]->header[j] = NULL;
                         clients[i]->left = -1;
                         CLR_BUF( clients[i]->msg, MSG_SIZE );
                         clients[i]->state = STATE_START;
@@ -211,6 +212,9 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
                         _close( clients[i]->sock.fd );
                         if( clients[i]->sock.context != NULL )
                             ssl_close( NULL, -1, clients[i]->sock.context );
+                        for( j = 0; j < HDR_SIZE; ++j )
+                            if( clients[i]->header[j] != NULL )
+                                free( clients[i]->header[j] );
                         FD_CLR( clients[i]->sock.fd, allset );
                         free( clients[i] );
                         clients[i] = NULL;
@@ -230,6 +234,9 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
                 _close( clients[i]->sock.fd );
                 if( clients[i]->sock.context != NULL )
                     ssl_close( NULL, -1, clients[i]->sock.context );
+                for( j = 0; j < HDR_SIZE; ++j )
+                    if( clients[i]->header[j] != NULL )
+                        free( clients[i]->header[j] );
                 FD_CLR( clients[i]->sock.fd, allset );
                 free( clients[i] );
                 clients[i] = NULL;

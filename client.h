@@ -15,10 +15,11 @@
 #define BUF_SIZE 4096
 #define URI_SIZE 256
 #define VERSION_SIZE 16
-#define CONTYPE_SIZE 128
 #define TOKEN_SIZE 256
 #define MSG_SIZE 4096
+#define CONTYPE_SIZE 128
 #define DATE_SIZE 64
+#define HDR_SIZE 11
 
 // state machine status used for parse
 typedef enum
@@ -57,14 +58,21 @@ typedef enum
     METHOD_UNKNOWN, // 4
 } method;
 
-// Connection field in headers
+// request header
 typedef enum
 {
-    CONN_NONE,       // 0
-    CONN_KEEP_ALIVE, // 1
-    CONN_CLOSE,      // 2
-    CONN_UNKNOWN,    // 3
-} connection;
+    HDR_CONTENT_LENGTH,
+    HDR_CONTENT_TYPE,
+    HDR_ACCEPT,
+    HDR_REFERER,
+    HDR_ACCEPT_ENCODING,
+    HDR_ACCEPT_LANGUAGE,
+    HDR_ACCEPT_CHARSET,
+    HDR_COOKIE,
+    HDR_USER_AGENT,
+    HDR_CONNECTION,
+    HDR_HOST,
+} header;
 
 // data structure maintained for client
 typedef struct
@@ -86,11 +94,14 @@ typedef struct
     char version[VERSION_SIZE];
 
     // general header
-    connection conn; 
+    // connection conn; 
 
     // entity header
-    char contype[CONTYPE_SIZE];
-    int conlen;
+    // char contype[CONTYPE_SIZE];
+    // int conlen;
+
+    // header
+    char *header[HDR_SIZE];
 
     // message body
     int left;

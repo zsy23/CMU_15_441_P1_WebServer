@@ -134,8 +134,12 @@ void shutdown_server( int r )
 int main( int argc, char *argv[] )
 {
     int http_port, https_port;
-    char log_file[ARG_MAX_SIZE], lock_file[ARG_MAX_SIZE], www_folder[ARG_MAX_SIZE], cgi_path[ARG_MAX_SIZE];
-    char prikey_file[ARG_MAX_SIZE], certificate_file[ARG_MAX_SIZE];
+    char log_file[ARG_MAX_SIZE] = { 0 };
+    char lock_file[ARG_MAX_SIZE] = { 0 };
+    char www_folder[ARG_MAX_SIZE] = { 0 };
+    char cgi_path[ARG_MAX_SIZE] = { 0 };
+    char prikey_file[ARG_MAX_SIZE] = { 0 };
+    char certificate_file[ARG_MAX_SIZE] = { 0 };
     int http_sock, https_sock;
     int maxi, maxfd;
     fd_set allset;
@@ -144,9 +148,9 @@ int main( int argc, char *argv[] )
     struct sockaddr_in http_addr, https_addr;
     list( sock_info ) unacc_head, *unacc_sock, *unacc_tmp;
     time_t now;
-    char date[DATE_SIZE];
+    char date[DATE_SIZE] = { 0 };
     SSL_CTX *ssl_context;
-    int i, r;
+    int i, j, r;
 
     // get eight arguments from input
     if( ( r = get_args(argc, argv, &http_port, &https_port, log_file, lock_file, www_folder, cgi_path, prikey_file, certificate_file) ) == -1 )    
@@ -221,7 +225,7 @@ int main( int argc, char *argv[] )
             time( &now );
             date_format( date, DATE_SIZE, &now );
 
-            respond( &unacc_sock->data, "HTTP/1.1", STATUS_503, CONN_CLOSE, date, "Liso/1.0", NULL );
+            respond( &unacc_sock->data, "HTTP/1.1", STATUS_503, "close", date, "Liso/1.0", NULL );
 
             _close( unacc_sock->data.fd );
             LOG_ERROR( "Unable to accept anymore connection\n" );
@@ -243,11 +247,11 @@ int main( int argc, char *argv[] )
                 // parse HTTP/1.1 request
                 parse( clients[i] );  
 
-                LOG_DEBUG( "Client(%s:%u) meth: %d, uri: %s, version: %s, conn: %d, contype: %s, conlen: %d, done: %d, state: %d, hdr_len: %d, token:%s\nleft: %d msg: %s\n", 
+                LOG_DEBUG( "Client(%s:%u) meth: %d, uri: %s, version: %s, done: %d, state: %d, hdr_len: %d, token:%s\nleft: %d msg: %s\n", 
                         inet_ntoa( clients[i]->sock.addr.sin_addr ), ntohs( clients[i]->sock.addr.sin_port ), 
-                        clients[i]->meth, clients[i]->uri, clients[i]->version, clients[i]->conn,
-                        clients[i]->contype, clients[i]->conlen, clients[i]->done, clients[i]->state,
-                        clients[i]->hdr_len, clients[i]->token, clients[i]->left, clients[i]->msg );
+                        clients[i]->meth, clients[i]->uri, clients[i]->version,
+                        clients[i]->done, clients[i]->state, clients[i]->hdr_len, clients[i]->token, 
+                        clients[i]->left, clients[i]->msg );
 
                 // if client's parse end, process request
                 if( clients[i]->done == TRUE )
@@ -255,12 +259,15 @@ int main( int argc, char *argv[] )
                     process( clients[i] );
 
                     // persistent connection
-                    if( clients[i]->conn == CONN_CLOSE )
+                    if( strncmp( clients[i]->header[HDR_CONNECTION], "close", MAX( strlen( clients[i]->header[HDR_CONNECTION] ), 5 ) ) == 0  )
                     {
                         LOG_INFO( "Connection to %s:%u closed normally\n", inet_ntoa( clients[i]->sock.addr.sin_addr ), ntohs( clients[i]->sock.addr.sin_port ) );
                         _close( clients[i]->sock.fd );
                         if( clients[i]->sock.context != NULL )
                             ssl_close( NULL, -1, clients[i]->sock.context );
+                        for( j = 0; j < HDR_SIZE; ++j )
+                            if( clients[i]->header[j] != NULL )
+                                free( clients[i]->header[j] );
                         FD_CLR( clients[i]->sock.fd, &allset );
                         free( clients[i] );
                         clients[i] = NULL;
@@ -274,9 +281,8 @@ int main( int argc, char *argv[] )
                         clients[i]->meth = METHOD_NONE;
                         CLR_BUF( clients[i]->uri, URI_SIZE );
                         CLR_BUF( clients[i]->version, VERSION_SIZE );
-                        clients[i]->conn = CONN_NONE;
-                        CLR_BUF( clients[i]->contype, CONTYPE_SIZE );
-                        clients[i]->conlen = -1;
+                        for( j = 0; j < HDR_SIZE; ++j )
+                            clients[i]->header[j] = NULL;
                         clients[i]->left = -1;
                         CLR_BUF( clients[i]->msg, MSG_SIZE );
                         clients[i]->state = STATE_START;
