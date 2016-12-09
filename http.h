@@ -48,7 +48,7 @@ typedef enum
 } status_code;
 
 // set www folder
-void set_www( const char *folder );
+int set_www( const char *folder );
 
 // fill header
 void fill_header( client_info *client, const char *field, const char *value );
@@ -61,6 +61,9 @@ void process( client_info *client );
 
 // respond request
 void respond( const sock_info *sock, const char *version, const int status, const char *conn, const char *date, const char *server, const msg_info *mi );
+
+// respond directly
+void respond_directly( const sock_info *sock, const char *response, size_t len );
 
 // head method
 int do_head( const char *uri, msg_info *mi );

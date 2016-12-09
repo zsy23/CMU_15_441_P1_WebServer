@@ -38,6 +38,8 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
             {
                 LOG_INFO( "Connection to %s:%u closed due to timeout\n", inet_ntoa( clients[i]->sock.addr.sin_addr ), ntohs( clients[i]->sock.addr.sin_port ) );
                 _close( clients[i]->sock.fd );
+                if( clients[i]->piped_fd >= 0 )
+                    _close( clients[i]->piped_fd );
                 if( clients[i]->sock.context != NULL )
                     ssl_close( NULL, -1, clients[i]->sock.context );
                 for( j = 0; j < HDR_SIZE; ++j )
@@ -90,6 +92,11 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
                         clients[i]->hdr_len = 0;
                         CLR_BUF( clients[i]->token, TOKEN_SIZE );
                         clients[i]->done = FALSE; 
+                        clients[i]->piped_fd = -1;
+                        clients[i]->output_len = 0;
+                        CLR_BUF( clients[i]->output, OUTPUT_SIZE );
+                        clients[i]->output_too_long = FALSE;
+                        clients[i]->cgi_done = FALSE;
                         break;
                     }
                 }
@@ -158,6 +165,11 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
                         clients[i]->hdr_len = 0;
                         CLR_BUF( clients[i]->token, TOKEN_SIZE );
                         clients[i]->done = FALSE; 
+                        clients[i]->piped_fd = -1;
+                        clients[i]->output_len = 0;
+                        CLR_BUF( clients[i]->output, OUTPUT_SIZE );
+                        clients[i]->output_too_long = FALSE;
+                        clients[i]->cgi_done = FALSE;
                         break;
                     }
                 }
@@ -210,6 +222,8 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
                         // remote client close the connection and update data concerned
                         LOG_INFO( "Connection to %s:%u closed normally\n", inet_ntoa( clients[i]->sock.addr.sin_addr ), ntohs( clients[i]->sock.addr.sin_port ) );
                         _close( clients[i]->sock.fd );
+                        if( clients[i]->piped_fd >= 0 )
+                            _close( clients[i]->piped_fd );
                         if( clients[i]->sock.context != NULL )
                             ssl_close( NULL, -1, clients[i]->sock.context );
                         for( j = 0; j < HDR_SIZE; ++j )
@@ -219,6 +233,27 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
                         free( clients[i] );
                         clients[i] = NULL;
                     } 
+
+                    if( --nready <= 0 ) break;
+                }
+
+                if( clients[i] != NULL && FD_ISSET( clients[i]->piped_fd, &rset ) )
+                {
+                    int len = -1;
+
+                    if( ( len = _recv( clients[i]->piped_fd, clients[i]->output + clients[i]->output_len, OUTPUT_SIZE - clients[i]->output_len, 0 ) ) > 0 )
+                    {
+                        clients[i]->output_len += len;
+                        if( clients[i]->output_len > ( OUTPUT_SIZE - 23 ) )
+                        {
+                            clients[i]->output_too_long = TRUE;
+                            clients[i]->cgi_done = TRUE;
+                        }
+                    }
+                    else if( len == 0 )
+                        clients[i]->cgi_done = TRUE;
+
+                    clients[i]->timeout = time(NULL) + TIMEOUT_SEC;
 
                     if( --nready <= 0 ) break;
                 }
@@ -232,6 +267,8 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
             {
                 LOG_INFO( "Connection to %s:%u closed due to timeout\n", inet_ntoa( clients[i]->sock.addr.sin_addr ), ntohs( clients[i]->sock.addr.sin_port ) );
                 _close( clients[i]->sock.fd );
+                if( clients[i]->piped_fd >= 0 )
+                    _close( clients[i]->piped_fd );
                 if( clients[i]->sock.context != NULL )
                     ssl_close( NULL, -1, clients[i]->sock.context );
                 for( j = 0; j < HDR_SIZE; ++j )

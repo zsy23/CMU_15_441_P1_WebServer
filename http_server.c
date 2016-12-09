@@ -12,6 +12,7 @@
 #include "util.h"
 #include "core.h"
 #include "http.h"
+#include "cgi.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -153,7 +154,7 @@ int main( int argc, char *argv[] )
     int i, j, r;
 
     // get eight arguments from input
-    if( ( r = get_args(argc, argv, &http_port, &https_port, log_file, lock_file, www_folder, cgi_path, prikey_file, certificate_file) ) == -1 )    
+    if( ( r = get_args(argc, argv, &http_port, &https_port, log_file, lock_file, www_folder, cgi_path, prikey_file, certificate_file) ) < 0 )    
         return -1;
     
     // init daemonize
@@ -164,20 +165,25 @@ int main( int argc, char *argv[] )
     log_init( LOG_LEVEL_DEBUG, log_file );    
 
     // set www folder
-    set_www( www_folder );
+    if( set_www( www_folder ) < 0 )
+        return -1;
+
+    // set cgi path
+    if( set_cgi( cgi_path, http_port, https_port ) < 0 )
+        return -1;
 
     // setup http socket
-    if( ( http_sock = _socket( PF_INET, SOCK_STREAM, 0 ) ) == -1 )
+    if( ( http_sock = _socket( PF_INET, SOCK_STREAM, 0 ) ) < 0 )
         return -1;
 
     http_addr.sin_family = AF_INET;
     http_addr.sin_port = htons( http_port );
     http_addr.sin_addr.s_addr = INADDR_ANY;
 
-   if( ( r = _bind( http_sock, ( struct sockaddr * ) &http_addr, sizeof( http_addr ) ) ) == -1 )
+   if( ( r = _bind( http_sock, ( struct sockaddr * ) &http_addr, sizeof( http_addr ) ) ) < 0 )
         return -1;     
 
-    if( ( r = _listen( http_sock, FD_SETSIZE ) ) == -1 )
+    if( ( r = _listen( http_sock, FD_SETSIZE ) ) < 0 )
         return -1; 
 
     // init ssl
@@ -186,17 +192,17 @@ int main( int argc, char *argv[] )
         return -1;
 
     // setup https socket
-    if( ( https_sock = _socket( PF_INET, SOCK_STREAM, 0 ) ) == -1 )
+    if( ( https_sock = _socket( PF_INET, SOCK_STREAM, 0 ) ) < 0 )
         return -1;
 
     https_addr.sin_family = AF_INET;
     https_addr.sin_port = htons( https_port );
     https_addr.sin_addr.s_addr = INADDR_ANY;
 
-    if( ( r = _bind( https_sock, ( struct sockaddr * ) &https_addr, sizeof( https_addr ) ) ) == -1 )
+    if( ( r = _bind( https_sock, ( struct sockaddr * ) &https_addr, sizeof( https_addr ) ) ) < 0 )
         return -1;
 
-    if( ( r = _listen( https_sock, FD_SETSIZE ) ) == -1 )
+    if( ( r = _listen( https_sock, FD_SETSIZE ) ) < 0 )
         return -1;
 
     // init  select concerned data structure
@@ -237,7 +243,51 @@ int main( int argc, char *argv[] )
         // process client resquest
         for( i = 0; i <= maxi; ++i )
         {
-            // find one
+            // find one cgi output
+            if( clients[i] != NULL && clients[i]->cgi_done == TRUE )
+            {
+                if( clients[i]->output_too_long == TRUE )
+                {
+                    int size = 0;
+                    char conn[CONN_MAX_SIZE] = { 0 };
+
+                    CLR_BUF( date, DATE_SIZE );
+                    time( &now );
+                    date_format( date, DATE_SIZE, &now );
+
+                    size = strlen( clients[i]->header[HDR_CONNECTION] );
+                    if( strncmp( clients[i]->header[HDR_CONNECTION], "close", MAX( size, 5 ) ) == 0 )
+                        snprintf( conn, CONN_MAX_SIZE, "close" );
+                    else if( strncmp( clients[i]->header[HDR_CONNECTION], "keep-alive", MAX( size, 10 ) ) == 0 )
+                        snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
+                    else
+                        snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
+
+                    respond( &clients[i]->sock, "HTTP/1.1", STATUS_500, conn, date, "Liso/1.0", NULL );
+                }
+                else
+                {
+                    respond_directly( &clients[i]->sock, clients[i]->output, clients[i]->output_len );
+                }
+
+                if( strncmp( clients[i]->header[HDR_CONNECTION], "close", MAX( strlen( clients[i]->header[HDR_CONNECTION] ), 5 ) ) == 0  )
+                {
+                    LOG_INFO( "Connection to %s:%u closed normally\n", inet_ntoa( clients[i]->sock.addr.sin_addr ), ntohs( clients[i]->sock.addr.sin_port ) );
+                    _close( clients[i]->sock.fd );
+                    if( clients[i]->piped_fd >= 0 )
+                        _close( clients[i]->piped_fd );
+                    if( clients[i]->sock.context != NULL )
+                        ssl_close( NULL, -1, clients[i]->sock.context );
+                    for( j = 0; j < HDR_SIZE; ++j )
+                        if( clients[i]->header[j] != NULL )
+                            free( clients[i]->header[j] );
+                    FD_CLR( clients[i]->sock.fd, &allset );
+                    free( clients[i] );
+                    clients[i] = NULL;
+                }
+            }
+
+            // find one request
             if( clients[i] != NULL && clients[i]->ready == TRUE )
             {
                 LOG_INFO( "Request From %s:%u( %ld ):\n%s\n",
@@ -258,11 +308,16 @@ int main( int argc, char *argv[] )
                 {                    
                     process( clients[i] );
 
+                    if( clients[i]->piped_fd >= 0 )
+                        FD_SET( clients[i]->piped_fd, &allset );
+
                     // persistent connection
-                    if( strncmp( clients[i]->header[HDR_CONNECTION], "close", MAX( strlen( clients[i]->header[HDR_CONNECTION] ), 5 ) ) == 0  )
+                    if( clients[i]->piped_fd < 0 && strncmp( clients[i]->header[HDR_CONNECTION], "close", MAX( strlen( clients[i]->header[HDR_CONNECTION] ), 5 ) ) == 0  )
                     {
                         LOG_INFO( "Connection to %s:%u closed normally\n", inet_ntoa( clients[i]->sock.addr.sin_addr ), ntohs( clients[i]->sock.addr.sin_port ) );
                         _close( clients[i]->sock.fd );
+                        if( clients[i]->piped_fd >= 0 )
+                            _close( clients[i]->piped_fd );
                         if( clients[i]->sock.context != NULL )
                             ssl_close( NULL, -1, clients[i]->sock.context );
                         for( j = 0; j < HDR_SIZE; ++j )
@@ -289,6 +344,11 @@ int main( int argc, char *argv[] )
                         clients[i]->hdr_len = 0;
                         CLR_BUF( clients[i]->token, TOKEN_SIZE );
                         clients[i]->done = FALSE; 
+                        clients[i]->piped_fd = -1;
+                        clients[i]->output_len = 0;
+                        CLR_BUF( clients[i]->output, OUTPUT_SIZE );
+                        clients[i]->output_too_long = FALSE;
+                        clients[i]->cgi_done = FALSE;
                     }
                 }  
                 else

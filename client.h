@@ -17,6 +17,7 @@
 #define VERSION_SIZE 16
 #define TOKEN_SIZE 256
 #define MSG_SIZE 4096
+#define OUTPUT_SIZE 12288
 #define CONTYPE_SIZE 128
 #define DATE_SIZE 64
 #define HDR_SIZE 11
@@ -61,17 +62,17 @@ typedef enum
 // request header
 typedef enum
 {
-    HDR_CONTENT_LENGTH,
-    HDR_CONTENT_TYPE,
-    HDR_ACCEPT,
-    HDR_REFERER,
-    HDR_ACCEPT_ENCODING,
-    HDR_ACCEPT_LANGUAGE,
-    HDR_ACCEPT_CHARSET,
-    HDR_COOKIE,
-    HDR_USER_AGENT,
-    HDR_CONNECTION,
-    HDR_HOST,
+    HDR_CONTENT_LENGTH,  //  0
+    HDR_CONTENT_TYPE,    //  1
+    HDR_ACCEPT,          //  2
+    HDR_REFERER,         //  3
+    HDR_ACCEPT_ENCODING, //  4
+    HDR_ACCEPT_LANGUAGE, //  5
+    HDR_ACCEPT_CHARSET,  //  6
+    HDR_COOKIE,          //  7
+    HDR_USER_AGENT,      //  8
+    HDR_CONNECTION,      //  9
+    HDR_HOST,            // 10
 } header;
 
 // data structure maintained for client
@@ -112,6 +113,13 @@ typedef struct
     int hdr_len;
     char token[TOKEN_SIZE];
     bool done;
+
+    // cgi used
+    int piped_fd;
+    int output_len;
+    char output[OUTPUT_SIZE];
+    bool output_too_long;
+    bool cgi_done;
 } client_info;
 
 // response message body

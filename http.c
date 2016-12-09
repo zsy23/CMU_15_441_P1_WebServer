@@ -9,6 +9,7 @@
 
 #include "http.h"
 #include "log.h"
+#include "cgi.h"
 
 #include <stdlib.h>
 #include <time.h>
@@ -52,9 +53,17 @@ const char *contype_strings[] = {
 };
 
 // set www folder
-void set_www( const char *folder )
+int set_www( const char *folder )
 {
+    if( strlen( folder ) > ( WWW_SIZE - 1 ) )
+    {
+        LOG_ERROR( "WWW folder too long\n" );
+        return -1;
+    }
+
     snprintf( www, WWW_SIZE, "%s", folder );
+
+    return 0;
 }
 
 // fill header
@@ -554,39 +563,49 @@ void parse( client_info *client )
 // process request and respond
 void process( client_info *client )
 {
+    int status, size;
+    time_t now;
+    msg_info mi;
+    char date[DATE_SIZE] = { 0 };
+    char version[] = "HTTP/1.1";
+    char server[] = "Liso/1.0";
+    char conn[CONN_MAX_SIZE] = { 0 };
+
+    status = -1;
+    mi.conlen = -1;
+    CLR_BUF( mi.contype, CONTYPE_SIZE );
+    CLR_BUF( mi.last_modi, DATE_SIZE );
+    mi.len = -1;
+
+    // Date field
+    time( &now );
+    date_format( date, DATE_SIZE, &now );
+
+    // Connection field
+    size = strlen( client->header[HDR_CONNECTION] );
+    if( strncmp( client->header[HDR_CONNECTION], "close", MAX( size, 5 ) ) == 0 )
+        snprintf( conn, CONN_MAX_SIZE, "close" );
+    else if( strncmp( client->header[HDR_CONNECTION], "keep-alive", MAX( size, 10 ) ) == 0 )
+        snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
+    else
+        snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
+
     if( strlen( client->uri ) >= 5 && strncmp( client->uri, "/cgi/", 5 ) == 0 )
     {
-        // TODO: CGI
+        int r;
+        
+        r = cgi( client );
+        if( r == SERVER_ERROR )
+            status = STATUS_500;
+        else if( r == REQUEST_ERROR )
+            status = STATUS_400;
+        else
+            return;
+
+        respond( &client->sock, version, status, conn, date, server, NULL );
     }
     else
     {
-        int status, size;
-        time_t now;
-        msg_info mi;
-        char date[DATE_SIZE] = { 0 };
-        char version[] = "HTTP/1.1";
-        char server[] = "Liso/1.0";
-        char conn[CONN_MAX_SIZE] = { 0 };
-
-        status = -1;
-        mi.conlen = -1;
-        CLR_BUF( mi.contype, CONTYPE_SIZE );
-        CLR_BUF( mi.last_modi, DATE_SIZE );
-        mi.len = -1;
-
-        // Date field
-        time( &now );
-        date_format( date, DATE_SIZE, &now );
-
-        // Connection field
-        size = strlen( client->header[HDR_CONNECTION] );
-        if( strncmp( client->header[HDR_CONNECTION], "close", MAX( size, 5 ) ) == 0 )
-            snprintf( conn, CONN_MAX_SIZE, "close" );
-        else if( strncmp( client->header[HDR_CONNECTION], "keep-alive", MAX( size, 10 ) ) == 0 )
-            snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
-        else
-            snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
-
         // according to state
         switch( client->state )
         {
@@ -660,6 +679,13 @@ void process( client_info *client )
             free( mi.msg );
     }
 }
+
+// respond directly
+void respond_directly( const sock_info *sock, const char *response, size_t len )
+{
+    if( generic_send( sock, response, len, 0 ) < len )
+        LOG_ERROR( "Response not complete\n" );
+}   
 
 // respond according to header and message
 void respond( const sock_info *sock, const char *version, const int status, const char *conn, const char *date, const char *server, const msg_info *mi )
