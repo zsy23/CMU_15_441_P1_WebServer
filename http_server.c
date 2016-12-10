@@ -246,22 +246,25 @@ int main( int argc, char *argv[] )
             // find one cgi output
             if( clients[i] != NULL && clients[i]->cgi_done == TRUE )
             {
+                int size = 0;
+                char conn[CONN_MAX_SIZE] = { 0 };
+
+                if( clients[i]->header[HDR_CONNECTION] != NULL )
+                    size = strlen( clients[i]->header[HDR_CONNECTION] );
+                if( size == 0 )
+                    snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
+                else if( strncmp( clients[i]->header[HDR_CONNECTION], "close", MAX( size, 5 ) ) == 0 )
+                    snprintf( conn, CONN_MAX_SIZE, "close" );
+                else if( strncmp( clients[i]->header[HDR_CONNECTION], "keep-alive", MAX( size, 10 ) ) == 0 )
+                    snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
+                else
+                    snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
+        
                 if( clients[i]->output_too_long == TRUE )
                 {
-                    int size = 0;
-                    char conn[CONN_MAX_SIZE] = { 0 };
-
                     CLR_BUF( date, DATE_SIZE );
                     time( &now );
                     date_format( date, DATE_SIZE, &now );
-
-                    size = strlen( clients[i]->header[HDR_CONNECTION] );
-                    if( strncmp( clients[i]->header[HDR_CONNECTION], "close", MAX( size, 5 ) ) == 0 )
-                        snprintf( conn, CONN_MAX_SIZE, "close" );
-                    else if( strncmp( clients[i]->header[HDR_CONNECTION], "keep-alive", MAX( size, 10 ) ) == 0 )
-                        snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
-                    else
-                        snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
 
                     respond( &clients[i]->sock, "HTTP/1.1", STATUS_500, conn, date, "Liso/1.0", NULL );
                 }
@@ -270,12 +273,16 @@ int main( int argc, char *argv[] )
                     respond_directly( &clients[i]->sock, clients[i]->output, clients[i]->output_len );
                 }
 
-                if( strncmp( clients[i]->header[HDR_CONNECTION], "close", MAX( strlen( clients[i]->header[HDR_CONNECTION] ), 5 ) ) == 0  )
+                if( clients[i]->piped_fd >= 0 )
+                {
+                    FD_CLR( clients[i]->piped_fd, &allset );
+                    _close( clients[i]->piped_fd );
+                }
+                
+                if( strncmp( conn, "close", MAX( strlen( conn ), 5 ) ) == 0  )
                 {
                     LOG_INFO( "Connection to %s:%u closed normally\n", inet_ntoa( clients[i]->sock.addr.sin_addr ), ntohs( clients[i]->sock.addr.sin_port ) );
                     _close( clients[i]->sock.fd );
-                    if( clients[i]->piped_fd >= 0 )
-                        _close( clients[i]->piped_fd );
                     if( clients[i]->sock.context != NULL )
                         ssl_close( NULL, -1, clients[i]->sock.context );
                     for( j = 0; j < HDR_SIZE; ++j )
@@ -284,6 +291,14 @@ int main( int argc, char *argv[] )
                     FD_CLR( clients[i]->sock.fd, &allset );
                     free( clients[i] );
                     clients[i] = NULL;
+                }
+                else
+                {
+                    clients[i]->piped_fd = -1;
+                    clients[i]->output_len = 0;
+                    CLR_BUF( clients[i]->output, OUTPUT_SIZE );
+                    clients[i]->output_too_long = FALSE;
+                    clients[i]->cgi_done = FALSE;
                 }
             }
 
@@ -307,9 +322,13 @@ int main( int argc, char *argv[] )
                 if( clients[i]->done == TRUE )
                 {                    
                     process( clients[i] );
-
+                    
                     if( clients[i]->piped_fd >= 0 )
+                    {
+                        if( maxfd < clients[i]->piped_fd ) 
+                            maxfd = clients[i]->piped_fd;
                         FD_SET( clients[i]->piped_fd, &allset );
+                    }
 
                     // persistent connection
                     if( clients[i]->piped_fd < 0 && strncmp( clients[i]->header[HDR_CONNECTION], "close", MAX( strlen( clients[i]->header[HDR_CONNECTION] ), 5 ) ) == 0  )
@@ -337,18 +356,22 @@ int main( int argc, char *argv[] )
                         CLR_BUF( clients[i]->uri, URI_SIZE );
                         CLR_BUF( clients[i]->version, VERSION_SIZE );
                         for( j = 0; j < HDR_SIZE; ++j )
-                            clients[i]->header[j] = NULL;
+                            if( clients[i]->header[j] != NULL )
+                            {
+                                free( clients[i]->header[j] );
+                                clients[i]->header[j] = NULL;
+                            }
                         clients[i]->left = -1;
                         CLR_BUF( clients[i]->msg, MSG_SIZE );
                         clients[i]->state = STATE_START;
                         clients[i]->hdr_len = 0;
                         CLR_BUF( clients[i]->token, TOKEN_SIZE );
                         clients[i]->done = FALSE; 
-                        clients[i]->piped_fd = -1;
-                        clients[i]->output_len = 0;
-                        CLR_BUF( clients[i]->output, OUTPUT_SIZE );
-                        clients[i]->output_too_long = FALSE;
-                        clients[i]->cgi_done = FALSE;
+                        // clients[i]->piped_fd = -1;
+                        // clients[i]->output_len = 0;
+                        // CLR_BUF( clients[i]->output, OUTPUT_SIZE );
+                        // clients[i]->output_too_long = FALSE;
+                        // clients[i]->cgi_done = FALSE;
                     }
                 }  
                 else

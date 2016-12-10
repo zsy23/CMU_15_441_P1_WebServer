@@ -13,6 +13,7 @@
 
 #include <fcntl.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <arpa/inet.h>
 
 // blocking listening with timeout and return client info
@@ -61,7 +62,7 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
     {
         // process inbound http connection
         if( FD_ISSET( http_sock, &rset ) )
-        {
+        { 
             // new connection from client
             addrlen = sizeof( struct sockaddr_in ); 
             if( ( cli_sock = _accept( http_sock, ( struct sockaddr * )&cli_addr, &addrlen ) ) != -1 )
@@ -127,7 +128,7 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
 
             --nready;
         }           
-         
+           
         // process inbound https connection
         if( FD_ISSET( https_sock, &rset ) )
         {
@@ -237,11 +238,11 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
                     if( --nready <= 0 ) break;
                 }
 
-                if( clients[i] != NULL && FD_ISSET( clients[i]->piped_fd, &rset ) )
+                if( clients[i] != NULL && clients[i]->piped_fd >= 0 && FD_ISSET( clients[i]->piped_fd, &rset ) )
                 {
                     int len = -1;
 
-                    if( ( len = _recv( clients[i]->piped_fd, clients[i]->output + clients[i]->output_len, OUTPUT_SIZE - clients[i]->output_len, 0 ) ) > 0 )
+                    if( ( len = read( clients[i]->piped_fd, clients[i]->output + clients[i]->output_len, OUTPUT_SIZE - clients[i]->output_len ) ) > 0 )
                     {
                         clients[i]->output_len += len;
                         if( clients[i]->output_len > ( OUTPUT_SIZE - 23 ) )
@@ -251,8 +252,10 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
                         }
                     }
                     else if( len == 0 )
+                    {
                         clients[i]->cgi_done = TRUE;
-
+                    }
+                    
                     clients[i]->timeout = time(NULL) + TIMEOUT_SEC;
 
                     if( --nready <= 0 ) break;

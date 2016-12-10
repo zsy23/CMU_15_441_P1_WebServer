@@ -15,7 +15,7 @@
 #define BUF_SIZE 4096
 #define URI_SIZE 256
 #define VERSION_SIZE 16
-#define TOKEN_SIZE 256
+#define TOKEN_SIZE 4096
 #define MSG_SIZE 4096
 #define OUTPUT_SIZE 12288
 #define CONTYPE_SIZE 128

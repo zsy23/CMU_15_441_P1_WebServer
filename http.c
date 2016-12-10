@@ -582,11 +582,16 @@ void process( client_info *client )
     date_format( date, DATE_SIZE, &now );
 
     // Connection field
-    size = strlen( client->header[HDR_CONNECTION] );
-    if( strncmp( client->header[HDR_CONNECTION], "close", MAX( size, 5 ) ) == 0 )
-        snprintf( conn, CONN_MAX_SIZE, "close" );
-    else if( strncmp( client->header[HDR_CONNECTION], "keep-alive", MAX( size, 10 ) ) == 0 )
-        snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
+    if( client->header[HDR_CONNECTION] != NULL )
+    {
+        size = strlen( client->header[HDR_CONNECTION] );
+        if( strncmp( client->header[HDR_CONNECTION], "close", MAX( size, 5 ) ) == 0 )
+            snprintf( conn, CONN_MAX_SIZE, "close" );
+        else if( strncmp( client->header[HDR_CONNECTION], "keep-alive", MAX( size, 10 ) ) == 0 )
+            snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
+        else
+            snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
+    }
     else
         snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
 

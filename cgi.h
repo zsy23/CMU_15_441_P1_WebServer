@@ -13,7 +13,7 @@
 #include "client.h"
 
 #define CGI_SIZE 256
-#define META_SIZE 256
+#define META_SIZE 4096
 #define META_NUM 23
 #define SERVER_ERROR -1
 #define REQUEST_ERROR -2
