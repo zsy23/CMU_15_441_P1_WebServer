@@ -270,6 +270,10 @@ int main( int argc, char *argv[] )
                 }
                 else
                 {
+                    LOG_INFO( "Response To %s:%u( %d ):\n%s\n",
+                          inet_ntoa( clients[i]->sock.addr.sin_addr ), ntohs( clients[i]->sock.addr.sin_port ), 
+                          clients[i]->output_len, clients[i]->output );
+
                     respond_directly( &clients[i]->sock, clients[i]->output, clients[i]->output_len );
                 }
 

@@ -127,9 +127,9 @@ int set_meta_variables( client_info *client, char **meta )
     strncpy( meta[META_REQUEST_URI] + 12, client->uri, pos1 );
     meta[META_REQUEST_URI][size - 1] = 0;
         
-    size = 13 + strlen( cgi_script );
+    size = 14;
     meta[META_SCRIPT_NAME] = ( char * )malloc( size );
-    snprintf( meta[META_SCRIPT_NAME], size, "SCRIPT_NAME=%s", cgi_script );
+    snprintf( meta[META_SCRIPT_NAME], size, "SCRIPT_NAME=." );
         
     size = 0;
     if( client->header[HDR_HOST] != NULL )
@@ -322,8 +322,7 @@ int cgi( client_info *client )
         _close( stdin_pipe[0] );
 
         // send msg body to cgi script
-//        if( strlen( client->msg ) > 0 && _send( stdin_pipe[1], client->msg, strlen( client->msg ), 0 ) < 0 )
-        if( write( stdin_pipe[1], "hello, world", 12 ) < 0 ) 
+        if( strlen( client->msg ) > 0 && write( stdin_pipe[1], client->msg, strlen( client->msg ) ) < 0 )
             return SERVER_ERROR;
         _close( stdin_pipe[1] );
 
