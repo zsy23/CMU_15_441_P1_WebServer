@@ -238,6 +238,7 @@ void listening(int http_sock, int https_sock, SSL_CTX *ssl_context, client_info 
                     if( --nready <= 0 ) break;
                 }
 
+                // some cgi script output
                 if( clients[i] != NULL && clients[i]->piped_fd >= 0 && FD_ISSET( clients[i]->piped_fd, &rset ) )
                 {
                     int len = -1;

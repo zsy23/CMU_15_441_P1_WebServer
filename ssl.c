@@ -35,22 +35,24 @@ int ssl_init( SSL_CTX **ssl_context, const char *prikey, const char *crt )
     // register private key
     if( SSL_CTX_use_PrivateKey_file( *ssl_context, prikey, SSL_FILETYPE_PEM ) == 0 )
     {
-        SSL_CTX_free( *ssl_context );
-
         e = ERR_get_error();
         tmp = ERR_error_string( e, err_msg );
         LOG_ERROR( "Error associating private key: %s\n", err_msg );
+
+        SSL_CTX_free( *ssl_context );
+
         return -1;
     }
 
     // registry public key( certificate )
     if( SSL_CTX_use_certificate_file( *ssl_context, crt, SSL_FILETYPE_PEM ) == 0 )
     {
-        SSL_CTX_free( *ssl_context );
-
         e = ERR_get_error();
         tmp = ERR_error_string( e, err_msg );
         LOG_ERROR( "Error associating certificate: %s\n", err_msg );
+
+        SSL_CTX_free( *ssl_context );
+
         return -1;
     }
 
@@ -66,33 +68,36 @@ int ssl_wrap_socket( SSL_CTX *ssl_context, int sockfd, SSL **sock_context )
 
     if( ( *sock_context = SSL_new( ssl_context ) ) == NULL )
     {
-        _close( sockfd );
-
         e = ERR_get_error();
         tmp = ERR_error_string( e, err_msg );
         LOG_ERROR( "Error creating client SSL context: %s\n", err_msg );
+
+        _close( sockfd );
+
         return -1;
     }
 
     if( SSL_set_fd( *sock_context, sockfd ) == 0 )
     {
-        _close( sockfd );
-        SSL_free( *sock_context );
-
         e = ERR_get_error();
         tmp = ERR_error_string( e, err_msg );
         LOG_ERROR( "Error creating client SSL context: %s\n", err_msg );
+
+        _close( sockfd );
+        SSL_free( *sock_context );
+
         return -1;
     }  
 
     if( SSL_accept( *sock_context ) <= 0 )
     {
-        _close( sockfd );
-        SSL_free( *sock_context );
-
         e = ERR_get_error();
         tmp = ERR_error_string( e, err_msg );
         LOG_ERROR( "Error accepting (handshake) client SSL context: %s\n", err_msg );
+
+        _close( sockfd );
+        SSL_free( *sock_context );
+
         return -1;
     }
 

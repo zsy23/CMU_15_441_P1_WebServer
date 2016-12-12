@@ -89,8 +89,7 @@ def add_entry():
                [request.form['title'], request.form['text']])
     db.commit()
     flash('New entry was successfully posted')
-    # return redirect(url_for('show_entries'))
-    return redirect('http://localhost:9999/cgi/')
+    return redirect(url_for('show_entries'))
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -104,8 +103,7 @@ def login():
         else:
             session['logged_in'] = True
             flash('You were logged in')
-            # return redirect(url_for('show_entries'))
-            return redirect('http://localhost:9999/cgi/')
+            return redirect(url_for('show_entries'))
     return render_template('login.html', error=error)
 
 
@@ -113,8 +111,8 @@ def login():
 def logout():
     session.pop('logged_in', None)
     flash('You were logged out')
-    # return redirect(url_for('show_entries'))
-    return redirect('http://localhost:9999/cgi/')
+    return redirect(url_for('show_entries'))
+
 
 # From PEP 333: http://www.python.org/dev/peps/pep-0333/
 ############### BEGIN WSGI WRAPPER ##############
@@ -128,7 +126,7 @@ def run_with_cgi(application):
     environ['wsgi.multiprocess'] = True
     environ['wsgi.run_once']     = True
 
-    if environ.get('HTTPS', 'off') in ('on', '1'):
+    if environ.get('HTTPS', 'on') in ('on', '1'):
         environ['wsgi.url_scheme'] = 'https'
     else:
         environ['wsgi.url_scheme'] = 'http'

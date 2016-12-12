@@ -94,13 +94,6 @@ typedef struct
     char uri[URI_SIZE];
     char version[VERSION_SIZE];
 
-    // general header
-    // connection conn; 
-
-    // entity header
-    // char contype[CONTYPE_SIZE];
-    // int conlen;
-
     // header
     char *header[HDR_SIZE];
 

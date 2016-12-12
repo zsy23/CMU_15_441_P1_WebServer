@@ -19,11 +19,14 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
+// close debug
+#define NO_DEBUG
+
 // arguments max size
 #define ARG_MAX_SIZE 256
 
 // whether daemonize
-#define DAEMONIZED FALSE
+#define DAEMONIZED TRUE
 
 // daemoize
 extern int daemonize( char *lock_file );
@@ -260,6 +263,7 @@ int main( int argc, char *argv[] )
                 else
                     snprintf( conn, CONN_MAX_SIZE, "keep-alive" );
         
+                // if output too long
                 if( clients[i]->output_too_long == TRUE )
                 {
                     CLR_BUF( date, DATE_SIZE );
@@ -277,6 +281,7 @@ int main( int argc, char *argv[] )
                     respond_directly( &clients[i]->sock, clients[i]->output, clients[i]->output_len );
                 }
 
+                // close piped fd
                 if( clients[i]->piped_fd >= 0 )
                 {
                     FD_CLR( clients[i]->piped_fd, &allset );
@@ -371,11 +376,6 @@ int main( int argc, char *argv[] )
                         clients[i]->hdr_len = 0;
                         CLR_BUF( clients[i]->token, TOKEN_SIZE );
                         clients[i]->done = FALSE; 
-                        // clients[i]->piped_fd = -1;
-                        // clients[i]->output_len = 0;
-                        // CLR_BUF( clients[i]->output, OUTPUT_SIZE );
-                        // clients[i]->output_too_long = FALSE;
-                        // clients[i]->cgi_done = FALSE;
                     }
                 }  
                 else

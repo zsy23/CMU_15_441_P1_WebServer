@@ -45,13 +45,6 @@ const char *status_reason_strings[] = {
     "505 HTTP Version Not Supported", //7
 };
 
-// Content-Type supported descriptions
-const char *contype_strings[] = {
-    "text/plain",
-    "application/x-www-form-urlencoded",
-    NULL,
-};
-
 // set www folder
 int set_www( const char *folder )
 {

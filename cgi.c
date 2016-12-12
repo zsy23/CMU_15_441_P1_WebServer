@@ -127,9 +127,9 @@ int set_meta_variables( client_info *client, char **meta )
     strncpy( meta[META_REQUEST_URI] + 12, client->uri, pos1 );
     meta[META_REQUEST_URI][size - 1] = 0;
         
-    size = 14;
+    size = 17;
     meta[META_SCRIPT_NAME] = ( char * )malloc( size );
-    snprintf( meta[META_SCRIPT_NAME], size, "SCRIPT_NAME=." );
+    snprintf( meta[META_SCRIPT_NAME], size, "SCRIPT_NAME=/cgi" );
         
     size = 0;
     if( client->header[HDR_HOST] != NULL )
